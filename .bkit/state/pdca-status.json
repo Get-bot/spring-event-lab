@@ -1,0 +1,217 @@
+{
+  "version": "2.0",
+  "lastUpdated": "2026-04-08T09:04:41.762Z",
+  "activeFeatures": [
+    "global",
+    "config",
+    "exception",
+    "support",
+    "springeventlab"
+  ],
+  "primaryFeature": "global",
+  "features": {
+    "global": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-04-08T08:54:18.801Z",
+        "lastUpdated": "2026-04-08T08:54:25.193Z"
+      },
+      "lastFile": "/home/qjawls/project/spring-event-lab/src/main/kotlin/com/beomjin/springeventlab/global/common/PageResponse.kt"
+    },
+    "config": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-04-08T08:54:27.631Z",
+        "lastUpdated": "2026-04-08T09:04:41.761Z"
+      },
+      "lastFile": "/home/qjawls/project/spring-event-lab/src/main/kotlin/com/beomjin/springeventlab/global/config/RedisConfig.kt"
+    },
+    "exception": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-04-08T08:54:55.663Z",
+        "lastUpdated": "2026-04-08T08:55:16.453Z"
+      },
+      "lastFile": "/home/qjawls/project/spring-event-lab/src/main/kotlin/com/beomjin/springeventlab/global/exception/GlobalExceptionHandler.kt"
+    },
+    "support": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-04-08T08:55:39.732Z",
+        "lastUpdated": "2026-04-08T08:55:39.732Z"
+      },
+      "lastFile": "/home/qjawls/project/spring-event-lab/src/test/kotlin/com/beomjin/springeventlab/support/IntegrationTestBase.kt"
+    },
+    "springeventlab": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-04-08T08:55:41.294Z",
+        "lastUpdated": "2026-04-08T08:55:41.295Z"
+      },
+      "lastFile": "/home/qjawls/project/spring-event-lab/src/test/kotlin/com/beomjin/springeventlab/SpringEventLabApplicationTests.kt"
+    }
+  },
+  "pipeline": {
+    "currentPhase": 1,
+    "level": "Dynamic",
+    "phaseHistory": []
+  },
+  "session": {
+    "startedAt": "2026-04-08T08:51:17.487Z",
+    "onboardingCompleted": false,
+    "lastActivity": "2026-04-08T09:04:41.762Z"
+  },
+  "history": [
+    {
+      "timestamp": "2026-04-08T08:54:18.801Z",
+      "feature": "global",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:54:20.827Z",
+      "feature": "global",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:54:22.700Z",
+      "feature": "global",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:54:25.193Z",
+      "feature": "global",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:54:27.631Z",
+      "feature": "config",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:54:28.190Z",
+      "feature": "config",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:54:31.140Z",
+      "feature": "config",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:54:36.220Z",
+      "feature": "config",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:54:41.903Z",
+      "feature": "config",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:54:49.842Z",
+      "feature": "config",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:54:55.663Z",
+      "feature": "exception",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:54:56.577Z",
+      "feature": "exception",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:54:58.527Z",
+      "feature": "exception",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:55:16.453Z",
+      "feature": "exception",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:55:39.732Z",
+      "feature": "support",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T08:55:41.295Z",
+      "feature": "springeventlab",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T09:00:57.368Z",
+      "feature": "config",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T09:00:58.687Z",
+      "feature": "config",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T09:01:20.607Z",
+      "feature": "config",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T09:04:01.206Z",
+      "feature": "config",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-08T09:04:41.761Z",
+      "feature": "config",
+      "phase": "do",
+      "action": "updated"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /d/spring-event-lab/src/main/resources -name *.yaml -o -name *.properties)"
+    ]
+  }
+}
