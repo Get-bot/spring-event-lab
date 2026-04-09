@@ -1,15 +1,118 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-04-08T09:04:41.762Z",
+  "lastUpdated": "2026-04-09T08:53:09.347Z",
   "activeFeatures": [
+    "event-crud",
+    "redis-stock",
+    "concurrency-test",
+    "kafka-consumer",
+    "waiting-queue",
     "global",
     "config",
     "exception",
     "support",
-    "springeventlab"
+    "springeventlab",
+    "entity"
   ],
-  "primaryFeature": "global",
+  "primaryFeature": "event-crud",
   "features": {
+    "event-crud": {
+      "phase": "plan",
+      "phaseNumber": 1,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [
+        "Event Entity",
+        "Flyway migration",
+        "CRUD API",
+        "Validation"
+      ],
+      "documents": {
+        "plan": "docs/01-plan/features/01-event-crud.plan.md"
+      },
+      "timestamps": {
+        "started": "2026-04-09T12:00:00.000Z",
+        "lastUpdated": "2026-04-09T12:00:00.000Z"
+      },
+      "lastFile": "docs/01-plan/features/01-event-crud.plan.md"
+    },
+    "redis-stock": {
+      "phase": "plan",
+      "phaseNumber": 1,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [
+        "Redis DECR",
+        "Duplicate prevention",
+        "Stock loading"
+      ],
+      "documents": {
+        "plan": "docs/01-plan/features/02-redis-stock.plan.md"
+      },
+      "timestamps": {
+        "started": "2026-04-09T12:00:00.000Z",
+        "lastUpdated": "2026-04-09T12:00:00.000Z"
+      },
+      "lastFile": "docs/01-plan/features/02-redis-stock.plan.md"
+    },
+    "concurrency-test": {
+      "phase": "plan",
+      "phaseNumber": 1,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [
+        "ExecutorService",
+        "CountDownLatch",
+        "Oversell verification"
+      ],
+      "documents": {
+        "plan": "docs/01-plan/features/03-concurrency-test.plan.md"
+      },
+      "timestamps": {
+        "started": "2026-04-09T12:00:00.000Z",
+        "lastUpdated": "2026-04-09T12:00:00.000Z"
+      },
+      "lastFile": "docs/01-plan/features/03-concurrency-test.plan.md"
+    },
+    "kafka-consumer": {
+      "phase": "plan",
+      "phaseNumber": 1,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [
+        "Kafka Producer",
+        "Kafka Consumer",
+        "DLT",
+        "Peak Load Shifting"
+      ],
+      "documents": {
+        "plan": "docs/01-plan/features/04-kafka-consumer.plan.md"
+      },
+      "timestamps": {
+        "started": "2026-04-09T12:00:00.000Z",
+        "lastUpdated": "2026-04-09T12:00:00.000Z"
+      },
+      "lastFile": "docs/01-plan/features/04-kafka-consumer.plan.md"
+    },
+    "waiting-queue": {
+      "phase": "plan",
+      "phaseNumber": 1,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [
+        "Redis Sorted Set",
+        "ZADD/ZRANK/ZPOPMIN",
+        "Scheduler"
+      ],
+      "documents": {
+        "plan": "docs/01-plan/features/05-waiting-queue.plan.md"
+      },
+      "timestamps": {
+        "started": "2026-04-09T12:00:00.000Z",
+        "lastUpdated": "2026-04-09T12:00:00.000Z"
+      },
+      "lastFile": "docs/01-plan/features/05-waiting-queue.plan.md"
+    },
     "global": {
       "phase": "do",
       "phaseNumber": 3,
@@ -74,6 +177,19 @@
         "lastUpdated": "2026-04-08T08:55:41.295Z"
       },
       "lastFile": "/home/qjawls/project/spring-event-lab/src/test/kotlin/com/beomjin/springeventlab/SpringEventLabApplicationTests.kt"
+    },
+    "entity": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-04-09T08:48:05.125Z",
+        "lastUpdated": "2026-04-09T08:53:09.347Z"
+      },
+      "lastFile": "/home/qjawls/project/spring-event-lab/src/main/kotlin/com/beomjin/springeventlab/coupon/entity/Event.kt"
     }
   },
   "pipeline": {
@@ -84,7 +200,7 @@
   "session": {
     "startedAt": "2026-04-08T08:51:17.487Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-04-08T09:04:41.762Z"
+    "lastActivity": "2026-04-09T08:53:09.347Z"
   },
   "history": [
     {
@@ -210,6 +326,18 @@
     {
       "timestamp": "2026-04-08T09:04:41.761Z",
       "feature": "config",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-09T08:48:05.125Z",
+      "feature": "entity",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-09T08:53:09.347Z",
+      "feature": "entity",
       "phase": "do",
       "action": "updated"
     }

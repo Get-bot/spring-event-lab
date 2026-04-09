@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find /d/spring-event-lab/src/main/resources -name *.yaml -o -name *.properties)"
+      "Bash(find /d/spring-event-lab/src/main/resources -name *.yaml -o -name *.properties)",
+      "Bash(mv event-crud.plan.md 01-event-crud.plan.md)",
+      "Bash(mv redis-stock.plan.md 02-redis-stock.plan.md)",
+      "Bash(mv concurrency-test.plan.md 03-concurrency-test.plan.md)",
+      "Bash(mv kafka-consumer.plan.md 04-kafka-consumer.plan.md)",
+      "Bash(mv waiting-queue.plan.md 05-waiting-queue.plan.md)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "WebSearch"
     ]
   }
 }
