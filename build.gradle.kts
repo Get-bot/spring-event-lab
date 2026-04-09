@@ -65,6 +65,9 @@ dependencies {
     developmentOnly("org.springframework.boot:spring-boot-devtools")
     runtimeOnly("org.postgresql:postgresql")
 
+    // Utils
+    implementation("com.github.f4b6a3:uuid-creator:6.1.1")
+
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
@@ -78,6 +81,7 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-kafka")
     testImplementation("org.testcontainers:testcontainers-postgresql")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    implementation(kotlin("stdlib"))
 }
 
 dependencyManagement {
@@ -89,6 +93,10 @@ dependencyManagement {
 kotlin {
     compilerOptions {
         freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property")
+    }
+
+    sourceSets.main {
+        kotlin.srcDir("build/generated/ksp/main/kotlin")
     }
 }
 
