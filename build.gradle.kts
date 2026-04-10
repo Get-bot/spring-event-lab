@@ -41,7 +41,7 @@ dependencies {
     implementation("tools.jackson.module:jackson-module-kotlin")
 
     // Flyway
-    implementation("org.flywaydb:flyway-core")
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
 
     // QueryDSL (OpenFeign fork, KSP)
@@ -83,6 +83,14 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-kafka")
     testImplementation("org.testcontainers:testcontainers-postgresql")
+
+    // Kotest — Kotlin-native assertions (shouldBe, shouldThrow<T>)
+    testImplementation("io.kotest:kotest-runner-junit5:5.9.1")
+    testImplementation("io.kotest:kotest-assertions-core:5.9.1")
+
+    // MockK — Kotlin-native mocking (L2 Service unit)
+    testImplementation("io.mockk:mockk:1.14.3")
+
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation(kotlin("stdlib"))
 }
