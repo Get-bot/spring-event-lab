@@ -1,7 +1,7 @@
 package com.beomjin.springeventlab.coupon.dto.request
 
 import com.beomjin.springeventlab.coupon.entity.Event
-import com.beomjin.springeventlab.event.entity.EventStatus
+import com.beomjin.springeventlab.coupon.entity.EventStatus
 import com.beomjin.springeventlab.global.common.DateRange
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED

@@ -3,7 +3,7 @@ package com.beomjin.springeventlab.coupon.service
 import com.beomjin.springeventlab.coupon.dto.request.EventPeriod
 import com.beomjin.springeventlab.coupon.dto.request.EventSearchType
 import com.beomjin.springeventlab.coupon.entity.QEvent.Companion.event
-import com.beomjin.springeventlab.event.entity.EventStatus
+import com.beomjin.springeventlab.coupon.entity.EventStatus
 import com.querydsl.core.types.OrderSpecifier
 import com.querydsl.core.types.dsl.BooleanExpression
 import com.querydsl.core.types.dsl.ComparableExpressionBase

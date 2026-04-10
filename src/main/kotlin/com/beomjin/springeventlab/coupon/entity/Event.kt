@@ -1,6 +1,6 @@
 package com.beomjin.springeventlab.coupon.entity
 
-import com.beomjin.springeventlab.event.entity.EventStatus
+import com.beomjin.springeventlab.coupon.entity.EventStatus
 import com.beomjin.springeventlab.global.common.BaseTimeEntity
 import com.beomjin.springeventlab.global.common.DateRange
 import com.beomjin.springeventlab.global.exception.BusinessException

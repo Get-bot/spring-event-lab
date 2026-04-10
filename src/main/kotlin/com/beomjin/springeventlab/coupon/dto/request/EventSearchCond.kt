@@ -1,6 +1,6 @@
 package com.beomjin.springeventlab.coupon.dto.request
 
-import com.beomjin.springeventlab.event.entity.EventStatus
+import com.beomjin.springeventlab.coupon.entity.EventStatus
 import io.swagger.v3.oas.annotations.media.ArraySchema
 import io.swagger.v3.oas.annotations.media.Schema
 import jakarta.validation.constraints.Size

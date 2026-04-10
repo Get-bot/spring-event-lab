@@ -61,9 +61,6 @@ dependencies {
     // Redisson (distributed lock)
     implementation("org.redisson:redisson-spring-boot-starter:$redissonVersion")
 
-    // swagger
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.2")
-
     // Runtime
     developmentOnly("org.springframework.boot:spring-boot-devtools")
     runtimeOnly("org.postgresql:postgresql")

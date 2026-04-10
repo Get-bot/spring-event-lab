@@ -1,4 +1,4 @@
-package com.beomjin.springeventlab.event.entity
+package com.beomjin.springeventlab.coupon.entity
 
 import com.beomjin.springeventlab.global.exception.BusinessException
 import com.beomjin.springeventlab.global.exception.ErrorCode

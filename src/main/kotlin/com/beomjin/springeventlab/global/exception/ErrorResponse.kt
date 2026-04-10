@@ -1,12 +1,12 @@
 package com.beomjin.springeventlab.global.exception
 
-import java.time.LocalDateTime
+import java.time.Instant
 
 data class ErrorResponse(
     val code: String,
     val message: String,
     val errors: Map<String, String> = emptyMap(),
-    val timestamp: LocalDateTime = LocalDateTime.now(),
+    val timestamp: Instant = Instant.now(),
 ) {
     companion object {
         fun of(errorCode: ErrorCode) =

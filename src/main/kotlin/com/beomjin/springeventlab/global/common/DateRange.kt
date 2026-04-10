@@ -47,4 +47,14 @@ class DateRange(
 
     /** 현재 시각이 종료 이후인지 */
     fun isEnded(now: Instant = Instant.now()): Boolean = !endedAt.isAfter(now)
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is DateRange) return false
+        return startedAt == other.startedAt && endedAt == other.endedAt
+    }
+
+    override fun hashCode(): Int = 31 * startedAt.hashCode() + endedAt.hashCode()
+
+    override fun toString(): String = "DateRange(startedAt=$startedAt, endedAt=$endedAt)"
 }
