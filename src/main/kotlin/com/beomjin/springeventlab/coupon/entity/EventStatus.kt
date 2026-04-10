@@ -5,11 +5,12 @@ import com.beomjin.springeventlab.global.exception.ErrorCode
 
 enum class EventStatus(
     val description: String,
+    val isIssuable: Boolean,
     private val allowedTransitions: () -> Set<EventStatus>,
 ) {
-    READY("이벤트 준비 중 (시작 전)", { setOf(OPEN) }),
-    OPEN("이벤트 진행 중 (발급 가능)", { setOf(CLOSED) }),
-    CLOSED("이벤트 종료", { emptySet() }),
+    READY("이벤트 준비 중 (시작 전)", isIssuable = false, { setOf(OPEN) }),
+    OPEN("이벤트 진행 중 (발급 가능)", isIssuable = true, { setOf(CLOSED) }),
+    CLOSED("이벤트 종료", isIssuable = false, { emptySet() }),
     ;
 
     fun canTransitionTo(next: EventStatus): Boolean = next in allowedTransitions()
@@ -17,8 +18,8 @@ enum class EventStatus(
     fun transitionTo(next: EventStatus): EventStatus {
         if (!canTransitionTo(next)) {
             throw BusinessException(
-                ErrorCode.CONFLICT,
-                "[$this → $next] 상태 전환 불가. 허용된 전환: ${allowedTransitions()}",
+                ErrorCode.EVENT_INVALID_STATUS_TRANSITION,
+                "[$this → $next] 허용된 전환: ${allowedTransitions()}",
             )
         }
         return next
