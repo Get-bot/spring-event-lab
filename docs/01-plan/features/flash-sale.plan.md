@@ -239,10 +239,11 @@
 모든 JPA Entity는 아래 패턴을 따른다. (참고: Stock 엔티티 예시 기반)
 
 **규칙:**
-- **ID 전략**: UUID v7 사용 — `UuidCreator.getTimeOrderedEpoch()` (uuid-creator 라이브러리)
+- **ID 전략**: UUID v7 사용 — `UuidCreator.getTimeOrderedEpoch()` + `@JdbcTypeCode(SqlTypes.UUID)` (Hibernate 6+ 네이티브 UUID 매핑)
   - UUID v7은 타임스탬프 기반으로 시간순 정렬이 가능하고, 분산 환경에서 충돌 없는 고유 ID 생성
   - `Long` 자동 증가 대비 장점: 외부 노출 시 ID 추측 불가, 멀티 노드 환경에서 안전
-  - `Persistable<UUID>` 인터페이스 구현 필요 (ID가 항상 non-null이므로 JPA isNew 판단을 위해)
+  - `var id` + `protected set` 패턴 (다른 필드와 동일한 방어적 세터)
+- **시간 타입**: `Instant` 사용 (타임존 독립적 UTC 시각, `LocalDateTime` 대신)
 - 생성자 파라미터로 필드를 받고, body에서 `var ... = param`으로 할당
 - 모든 필드에 `protected set` 적용 (외부에서 직접 변경 불가, 도메인 메서드로만 변경)
 - `@Column`에 `nullable`, `length`, `comment` 등 상세 속성 명시
@@ -256,13 +257,14 @@ class Event(
     title: String,
     totalQuantity: Int,
     eventStatus: EventStatus,
-    startedAt: LocalDateTime,
-    endedAt: LocalDateTime,
+    startedAt: Instant,
+    endedAt: Instant,
 ) : BaseTimeEntity() {
-
     @Id
-    @Column(columnDefinition = "UUID")
-    val id: UUID = UuidCreator.getTimeOrderedEpoch()
+    @JdbcTypeCode(SqlTypes.UUID)
+    @Column(updatable = false, nullable = false, comment = "이벤트 PK")
+    var id: UUID = UuidCreator.getTimeOrderedEpoch()
+        protected set
 
     @Column(nullable = false, length = 200, comment = "이벤트 제목")
     var title: String = title
@@ -282,11 +284,11 @@ class Event(
         protected set
 
     @Column(nullable = false, comment = "시작 시각")
-    var startedAt: LocalDateTime = startedAt
+    var startedAt: Instant = startedAt
         protected set
 
     @Column(nullable = false, comment = "종료 시각")
-    var endedAt: LocalDateTime = endedAt
+    var endedAt: Instant = endedAt
         protected set
 }
 ```
@@ -295,10 +297,10 @@ class Event(
 
 - **마이그레이션 도구**: Flyway (설정 완료: `application.yaml`)
 - **파일 위치**: `src/main/resources/db/migration/`
-- **네이밍 규칙**: `V{번호}__{설명}.sql` (언더스코어 2개)
-  - 예: `V1__create_event_table.sql`, `V2__create_coupon_issue_table.sql`
+- **네이밍 규칙**: `V{yyyyMMddHHmmss}__{설명}.sql` (타임스탬프 기반, 언더스코어 2개)
+  - 예: `V20260409174330__create_event_table.sql`, `V20260409174359__create_coupon_issue_table.sql`
 - **DDL 규칙**:
-  - PK는 `UUID PRIMARY KEY` (애플리케이션에서 UUID v7 생성, DB 기본값 불필요)
+  - PK는 `UUID PRIMARY KEY` (애플리케이션에서 `UuidCreator.getTimeOrderedEpoch()` UUID v7 생성, DB 기본값 불필요)
   - FK 참조 컬럼도 `UUID` 타입 사용
   - `created_at`, `updated_at`는 BaseTimeEntity가 관리하므로 DDL에 포함
   - `VARCHAR` 길이는 Entity `@Column(length=N)`과 일치시킬 것
@@ -323,35 +325,27 @@ class Event(
 com.beomjin.springeventlab/
 ├── global/                          # (기존) 공통 인프라
 │   ├── common/
+│   │   ├── BaseTimeEntity.kt        # createdAt + updatedAt
+│   │   ├── BaseCreatedTimeEntity.kt # createdAt만
+│   │   └── PageResponse.kt          # 페이징 응답 DTO
 │   ├── config/
+│   │   ├── JpaConfig.kt, AsyncConfig.kt, RestClientConfig.kt, SwaggerConfig.kt
 │   └── exception/
-├── domain/
-│   └── event/                       # Flash Sale 도메인
-│       ├── controller/              # REST API
-│       │   └── EventController.kt
-│       ├── dto/                     # Request/Response DTO
-│       │   ├── EventCreateRequest.kt
-│       │   ├── EventResponse.kt
-│       │   └── IssueResponse.kt
-│       ├── entity/                  # JPA Entity
-│       │   ├── Event.kt
-│       │   └── CouponIssue.kt
-│       ├── repository/             # JPA Repository
-│       │   ├── EventRepository.kt
-│       │   └── CouponIssueRepository.kt
-│       ├── service/                # Business Logic
-│       │   ├── EventService.kt
-│       │   └── CouponIssueService.kt
-│       └── infrastructure/         # Redis, Kafka 연동
-│           ├── RedisStockManager.kt
-│           ├── WaitingQueueManager.kt
-│           ├── CouponIssueProducer.kt
-│           └── CouponIssueConsumer.kt
-└── infra/                          # 인프라 공통
+│       ├── ErrorCode.kt, BusinessException.kt, ErrorResponse.kt, GlobalExceptionHandler.kt
+├── coupon/                          # (현재) Flash Sale 도메인 — 엔티티 구현 완료
+│   └── entity/
+│       ├── Event.kt                 # 이벤트 엔티티 (package: event.entity)
+│       ├── EventStatus.kt           # 상태 enum (package: event.entity)
+│       └── CouponIssue.kt           # 쿠폰 발급 엔티티 (package: coupon.entity)
+│   (이후 추가 예정)
+│   ├── controller/                  # REST API
+│   ├── dto/                         # Request/Response DTO
+│   ├── repository/                  # JPA Repository
+│   ├── service/                     # Business Logic
+│   └── infrastructure/              # Redis, Kafka 연동
+└── infra/                           # 인프라 공통 (필요 시 추가)
     ├── kafka/
-    │   └── KafkaConfig.kt
     └── redis/
-        └── RedisConfig.kt
 ```
 
 ### 7.6 Environment Variables
@@ -367,30 +361,32 @@ com.beomjin.springeventlab/
 ### 7.7 Database Schema (초안)
 
 ```sql
--- V1__create_event_table.sql
-CREATE TABLE event (
-    id              UUID            PRIMARY KEY,
-    title           VARCHAR(200)    NOT NULL,
-    total_quantity  INT             NOT NULL,
-    issued_quantity INT             NOT NULL DEFAULT 0,
-    event_status    VARCHAR(20)     NOT NULL DEFAULT 'READY',
-    started_at      TIMESTAMP       NOT NULL,
-    ended_at        TIMESTAMP       NOT NULL,
-    created_at      TIMESTAMP       NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMP       NOT NULL DEFAULT NOW()
+-- V20260409174330__create_event_table.sql
+CREATE TABLE event
+(
+    id              UUID PRIMARY KEY,
+    title           VARCHAR(200) NOT NULL,
+    total_quantity  INT          NOT NULL DEFAULT 0,
+    issued_quantity INT          NOT NULL DEFAULT 0,
+    event_status    VARCHAR(20)  NOT NULL DEFAULT 'READY',
+    started_at      TIMESTAMP    NOT NULL,
+    ended_at        TIMESTAMP    NOT NULL,
+    created_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
--- V2__create_coupon_issue_table.sql
-CREATE TABLE coupon_issue (
-    id          UUID            PRIMARY KEY,
-    event_id    UUID            NOT NULL REFERENCES event(id),
-    user_id     BIGINT          NOT NULL,
-    created_at  TIMESTAMP       NOT NULL DEFAULT NOW(),
+-- V20260409174359__create_coupon_issue_table.sql
+CREATE TABLE coupon_issue
+(
+    id         UUID PRIMARY KEY,
+    event_id   UUID      NOT NULL REFERENCES event (id),
+    user_id    UUID      NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     CONSTRAINT uk_coupon_issue UNIQUE (event_id, user_id)
 );
 
-CREATE INDEX idx_coupon_issue_event_id ON coupon_issue(event_id);
-CREATE INDEX idx_coupon_issue_user_id ON coupon_issue(user_id);
+CREATE INDEX idx_coupon_issue_event_id ON coupon_issue (event_id);
+CREATE INDEX idx_coupon_issue_user_id ON coupon_issue (user_id);
 ```
 
 ### 7.8 Redis Key Design
@@ -429,3 +425,4 @@ CREATE INDEX idx_coupon_issue_user_id ON coupon_issue(user_id);
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
 | 0.1 | 2026-04-09 | Initial draft | beomjin |
+| 0.2 | 2026-04-10 | 실제 구현 엔티티에 맞춰 Convention 동기화 (UuidCreator+JdbcTypeCode, Instant, userId UUID, 타임스탬프 마이그레이션 네이밍) | beomjin |

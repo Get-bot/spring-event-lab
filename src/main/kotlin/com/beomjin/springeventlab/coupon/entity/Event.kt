@@ -1,6 +1,10 @@
-package com.beomjin.springeventlab.event.entity
+package com.beomjin.springeventlab.coupon.entity
 
+import com.beomjin.springeventlab.event.entity.EventStatus
 import com.beomjin.springeventlab.global.common.BaseTimeEntity
+import com.beomjin.springeventlab.global.exception.BusinessException
+import com.beomjin.springeventlab.global.exception.ErrorCode
+import com.github.f4b6a3.uuid.UuidCreator
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -9,11 +13,11 @@ import jakarta.persistence.Id
 import jakarta.persistence.Table
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
-import java.util.UUID
 import java.time.Instant
+import java.util.UUID
 
 @Entity
-@Table(name = "events")
+@Table(name = "event")
 class Event(
     title: String,
     totalQuantity: Int,
@@ -24,7 +28,7 @@ class Event(
     @Id
     @JdbcTypeCode(SqlTypes.UUID)
     @Column(updatable = false, nullable = false, comment = "이벤트 PK")
-    var id: UUID = UUID.randomUUID()
+    var id: UUID = UuidCreator.getTimeOrderedEpoch()
         protected set
 
     @Column(nullable = false, length = 200, comment = "이벤트 제목")
@@ -63,19 +67,22 @@ class Event(
 
     /** 쿠폰 1장 발급 처리 (재고 차감) — redis-stock에서 사용 예정 */
     fun issue() {
-        check(isIssuable()) { "발급 불가능한 상태입니다. status=$eventStatus, remaining=$remainingQuantity" }
+        if (!isIssuable()) {
+            throw BusinessException(
+                ErrorCode.CONFLICT,
+                "발급 불가능한 상태입니다. status=$eventStatus, remaining=$remainingQuantity",
+            )
+        }
         issuedQuantity++
     }
 
     /** 이벤트 오픈 */
     fun open() {
-        check(eventStatus == EventStatus.READY) { "READY 상태에서만 오픈 가능합니다. current=$eventStatus" }
-        eventStatus = EventStatus.OPEN
+        eventStatus = eventStatus.transitionTo(EventStatus.OPEN)
     }
 
     /** 이벤트 종료 */
     fun close() {
-        check(eventStatus == EventStatus.OPEN) { "OPEN 상태에서만 종료 가능합니다. current=$eventStatus" }
-        eventStatus = EventStatus.CLOSED
+        eventStatus = eventStatus.transitionTo(EventStatus.CLOSED)
     }
 }

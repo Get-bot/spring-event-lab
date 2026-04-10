@@ -31,7 +31,7 @@
 
 ### 1.2 학습 포인트
 
-- **UUID v7 ID 전략**: 타임스탬프 기반 정렬 가능 UUID, `UuidCreator.getTimeOrderedEpoch()`
+- **UUID v7 ID 전략**: `UuidCreator.getTimeOrderedEpoch()` + `@JdbcTypeCode(SqlTypes.UUID)` 어노테이션
 - **JPA Entity 설계**: BaseTimeEntity 상속, enum 매핑, 제약 조건
 - **Flyway 마이그레이션**: DDL을 코드로 관리하는 방법
 - **Layered Architecture**: Controller → Service → Repository 구조
@@ -90,6 +90,8 @@
 > - 생성자 파라미터로 필드를 받고, body에서 `var ... = param` + `protected set`
 > - `@Column`에 `nullable`, `length`, `comment` 등 상세 속성 명시
 > - `BaseTimeEntity()` 상속 (createdAt, updatedAt 자동 관리)
+> - ID: `UuidCreator.getTimeOrderedEpoch()` (UUID v7) + `@JdbcTypeCode(SqlTypes.UUID)` — Hibernate 6+ 네이티브 UUID 매핑
+> - 시간 타입: `Instant` 사용 (타임존 독립적 UTC 시각)
 
 ### 4.1 Event Entity
 
@@ -100,13 +102,14 @@ class Event(
     title: String,
     totalQuantity: Int,
     eventStatus: EventStatus,
-    startedAt: LocalDateTime,
-    endedAt: LocalDateTime,
+    startedAt: Instant,
+    endedAt: Instant,
 ) : BaseTimeEntity() {
-
     @Id
-    @Column(columnDefinition = "UUID")
-    val id: UUID = UuidCreator.getTimeOrderedEpoch()  // UUID v7 (시간순 정렬 가능)
+    @JdbcTypeCode(SqlTypes.UUID)
+    @Column(updatable = false, nullable = false, comment = "이벤트 PK")
+    var id: UUID = UuidCreator.getTimeOrderedEpoch()
+        protected set
 
     @Column(nullable = false, length = 200, comment = "이벤트 제목")
     var title: String = title
@@ -126,22 +129,53 @@ class Event(
         protected set
 
     @Column(nullable = false, comment = "시작 시각")
-    var startedAt: LocalDateTime = startedAt
+    var startedAt: Instant = startedAt
         protected set
 
     @Column(nullable = false, comment = "종료 시각")
-    var endedAt: LocalDateTime = endedAt
+    var endedAt: Instant = endedAt
         protected set
+
+    // --- 도메인 로직 ---
+
+    /** 잔여 수량 계산 */
+    val remainingQuantity: Int
+        get() = totalQuantity - issuedQuantity
+
+    /** 발급 가능 여부 확인 */
+    fun isIssuable(): Boolean = eventStatus == EventStatus.OPEN && remainingQuantity > 0
+
+    /** 쿠폰 1장 발급 처리 (재고 차감) — redis-stock에서 사용 예정 */
+    fun issue() {
+        check(isIssuable()) { "발급 불가능한 상태입니다. status=$eventStatus, remaining=$remainingQuantity" }
+        issuedQuantity++
+    }
+
+    /** 이벤트 오픈 */
+    fun open() {
+        check(eventStatus == EventStatus.READY) { "READY 상태에서만 오픈 가능합니다. current=$eventStatus" }
+        eventStatus = EventStatus.OPEN
+    }
+
+    /** 이벤트 종료 */
+    fun close() {
+        check(eventStatus == EventStatus.OPEN) { "OPEN 상태에서만 종료 가능합니다. current=$eventStatus" }
+        eventStatus = EventStatus.CLOSED
+    }
 }
 ```
 
 ### 4.2 EventStatus Enum
 
 ```kotlin
-enum class EventStatus {
-    READY,  // 이벤트 준비 중 (시작 전)
-    OPEN,   // 이벤트 진행 중 (발급 가능)
-    CLOSED  // 이벤트 종료
+enum class EventStatus(
+    val description: String,
+) {
+    READY("이벤트 준비 중 (시작 전)"),
+    OPEN("이벤트 진행 중 (발급 가능)"),
+    CLOSED("이벤트 종료"),
+
+    // TODO : 상태전환 머신 구현
 }
 ```
 
@@ -152,19 +186,20 @@ enum class EventStatus {
 @Table(name = "coupon_issue")
 class CouponIssue(
     eventId: UUID,
-    userId: Long,
+    userId: UUID,
 ) : BaseCreatedTimeEntity() {
-
     @Id
-    @Column(columnDefinition = "UUID")
-    val id: UUID = UuidCreator.getTimeOrderedEpoch()
+    @JdbcTypeCode(SqlTypes.UUID)
+    @Column(updatable = false, nullable = false, comment = "쿠폰_발급 PK")
+    var id: UUID = UuidCreator.getTimeOrderedEpoch()
+        protected set
 
     @Column(nullable = false, comment = "이벤트 ID")
     var eventId: UUID = eventId
         protected set
 
     @Column(nullable = false, comment = "사용자 ID")
-    var userId: Long = userId
+    var userId: UUID = userId
         protected set
 }
 ```
@@ -174,21 +209,23 @@ class CouponIssue(
 > 마이그레이션 도구: **Flyway** | 파일 위치: `src/main/resources/db/migration/`
 > JPA `ddl-auto: validate` — Flyway가 DDL 관리, JPA는 검증만 수행
 
-### 5.1 V1__create_event_table.sql
+### 5.1 V20260409174330__create_event_table.sql
 
 ```sql
-CREATE TABLE event (
-    id              UUID            PRIMARY KEY,
-    title           VARCHAR(200)    NOT NULL,
-    total_quantity  INT             NOT NULL,
-    issued_quantity INT             NOT NULL DEFAULT 0,
-    event_status    VARCHAR(20)     NOT NULL DEFAULT 'READY',
-    started_at      TIMESTAMP       NOT NULL,
-    ended_at        TIMESTAMP       NOT NULL,
-    created_at      TIMESTAMP       NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMP       NOT NULL DEFAULT NOW()
+CREATE TABLE event
+(
+    id              UUID PRIMARY KEY,
+    title           VARCHAR(200) NOT NULL,
+    total_quantity  INT          NOT NULL DEFAULT 0,
+    issued_quantity INT          NOT NULL DEFAULT 0,
+    event_status    VARCHAR(20)  NOT NULL DEFAULT 'READY',
+    started_at      TIMESTAMP    NOT NULL,
+    ended_at        TIMESTAMP    NOT NULL,
+    created_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
+COMMENT ON TABLE event IS '선착순 이벤트';
 COMMENT ON COLUMN event.title IS '이벤트 제목';
 COMMENT ON COLUMN event.total_quantity IS '총 수량';
 COMMENT ON COLUMN event.issued_quantity IS '발급된 수량';
@@ -197,22 +234,24 @@ COMMENT ON COLUMN event.started_at IS '시작 시각';
 COMMENT ON COLUMN event.ended_at IS '종료 시각';
 ```
 
-> **UUID v7과 PostgreSQL**: PostgreSQL `UUID` 타입은 16바이트 고정 크기로 저장된다. UUID v7은 앞부분이 타임스탬프이므로 B-tree 인덱스에서 순차 삽입 패턴을 보이며, UUID v4 대비 인덱스 성능이 우수하다. `DEFAULT` 절이 없는 이유는 애플리케이션(Hibernate)에서 UUID를 생성하기 때문이다.
+> **UUID와 PostgreSQL**: PostgreSQL `UUID` 타입은 16바이트 고정 크기로 저장된다. `DEFAULT` 절이 없는 이유는 애플리케이션(`UuidCreator.getTimeOrderedEpoch()`)에서 UUID v7을 생성하기 때문이다. 마이그레이션 파일명은 타임스탬프 기반(`V{yyyyMMddHHmmss}__`)으로 Flyway 충돌을 방지한다.
 
-### 5.2 V2__create_coupon_issue_table.sql
+### 5.2 V20260409174359__create_coupon_issue_table.sql
 
 ```sql
-CREATE TABLE coupon_issue (
-    id          UUID            PRIMARY KEY,
-    event_id    UUID            NOT NULL REFERENCES event(id),
-    user_id     BIGINT          NOT NULL,
-    created_at  TIMESTAMP       NOT NULL DEFAULT NOW(),
+CREATE TABLE coupon_issue
+(
+    id         UUID PRIMARY KEY,
+    event_id   UUID      NOT NULL REFERENCES event (id),
+    user_id    UUID      NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     CONSTRAINT uk_coupon_issue UNIQUE (event_id, user_id)
 );
 
-CREATE INDEX idx_coupon_issue_event_id ON coupon_issue(event_id);
-CREATE INDEX idx_coupon_issue_user_id ON coupon_issue(user_id);
+CREATE INDEX idx_coupon_issue_event_id ON coupon_issue (event_id);
+CREATE INDEX idx_coupon_issue_user_id ON coupon_issue (user_id);
 
+COMMENT ON TABLE coupon_issue IS '쿠폰 발급 이력';
 COMMENT ON COLUMN coupon_issue.event_id IS '이벤트 ID';
 COMMENT ON COLUMN coupon_issue.user_id IS '사용자 ID';
 ```
@@ -222,23 +261,15 @@ COMMENT ON COLUMN coupon_issue.user_id IS '사용자 ID';
 ## 6. Package Structure
 
 ```
-domain/event/
-├── controller/
-│   └── EventController.kt          # REST API
-├── dto/
-│   ├── EventCreateRequest.kt       # 생성 요청
-│   ├── EventResponse.kt            # 응답
-│   └── EventStatusRequest.kt       # 상태 변경 요청
-├── entity/
-│   ├── Event.kt                    # 이벤트 엔티티
-│   ├── EventStatus.kt              # 상태 enum
-│   └── CouponIssue.kt              # 쿠폰 발급 엔티티 (스키마만)
-├── repository/
-│   ├── EventRepository.kt          # JPA Repository
-│   └── CouponIssueRepository.kt    # JPA Repository
-└── service/
-    └── EventService.kt             # 비즈니스 로직
+coupon/
+└── entity/
+    ├── Event.kt                    # 이벤트 엔티티 (Rich Domain Model)
+    ├── EventStatus.kt              # 상태 enum (READY/OPEN/CLOSED)
+    └── CouponIssue.kt              # 쿠폰 발급 엔티티 (스키마만)
 ```
+
+> **참고**: 현재 엔티티만 생성된 상태이며, controller/dto/service/repository는 구현 단계에서 추가 예정.
+> 패키지 선언: Event.kt → `event.entity`, CouponIssue.kt → `coupon.entity`
 
 ---
 
@@ -254,7 +285,7 @@ domain/event/
 
 ## 8. Success Criteria
 
-- [ ] Flyway 마이그레이션(`V1`, `V2`)이 정상 실행된다
+- [ ] Flyway 마이그레이션(`V20260409174330`, `V20260409174359`)이 정상 실행된다
 - [ ] Entity가 Template Convention(생성자 파라미터 + protected set)을 따른다
 - [ ] CRUD API가 Swagger UI에서 테스트 가능하다
 - [ ] Validation 에러 시 적절한 에러 응답이 반환된다
@@ -276,3 +307,4 @@ domain/event/
 |---------|------|---------|--------|
 | 0.1 | 2026-04-09 | Initial draft | beomjin |
 | 0.2 | 2026-04-09 | UUID v7 ID 전략 적용 (UuidCreator) | beomjin |
+| 0.3 | 2026-04-10 | 실제 구현 엔티티에 맞춰 문서 동기화 (UuidCreator+JdbcTypeCode, Instant, userId UUID, 도메인 로직, 마이그레이션 타임스탬프 네이밍) | beomjin |

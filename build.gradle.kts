@@ -61,6 +61,9 @@ dependencies {
     // Redisson (distributed lock)
     implementation("org.redisson:redisson-spring-boot-starter:$redissonVersion")
 
+    // swagger
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.2")
+
     // Runtime
     developmentOnly("org.springframework.boot:spring-boot-devtools")
     runtimeOnly("org.postgresql:postgresql")
@@ -98,12 +101,6 @@ kotlin {
     sourceSets.main {
         kotlin.srcDir("build/generated/ksp/main/kotlin")
     }
-}
-
-allOpen {
-    annotation("jakarta.persistence.Entity")
-    annotation("jakarta.persistence.MappedSuperclass")
-    annotation("jakarta.persistence.Embeddable")
 }
 
 tasks.withType<Test> {

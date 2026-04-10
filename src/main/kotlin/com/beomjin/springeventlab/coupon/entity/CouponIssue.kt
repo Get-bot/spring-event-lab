@@ -1,6 +1,7 @@
 package com.beomjin.springeventlab.coupon.entity
 
 import com.beomjin.springeventlab.global.common.BaseCreatedTimeEntity
+import com.github.f4b6a3.uuid.UuidCreator
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
@@ -18,7 +19,7 @@ class CouponIssue(
     @Id
     @JdbcTypeCode(SqlTypes.UUID)
     @Column(updatable = false, nullable = false, comment = "쿠폰_발급 PK")
-    var id: UUID = UUID.randomUUID()
+    var id: UUID = UuidCreator.getTimeOrderedEpoch()
         protected set
 
     @Column(nullable = false, comment = "이벤트 ID")

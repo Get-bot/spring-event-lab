@@ -9,7 +9,11 @@
       "Bash(mv waiting-queue.plan.md 05-waiting-queue.plan.md)",
       "mcp__context7__resolve-library-id",
       "mcp__context7__query-docs",
-      "WebSearch"
+      "WebSearch",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "Bash(./gradlew --version)",
+      "Bash(chmod +x gradlew)",
+      "Bash(./gradlew compileKotlin)"
     ]
   }
 }

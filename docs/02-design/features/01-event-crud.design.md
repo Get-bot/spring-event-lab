@@ -27,7 +27,7 @@
 ### 1.1 Design Goals
 
 - Plan 문서의 Entity Convention(생성자 파라미터 + `protected set`)을 정확히 구현
-- **UUID v7 ID 전략** 적용 — `uuid-creator` 라이브러리 `UuidCreator.getTimeOrderedEpoch()` + `Persistable<UUID>`
+- **UUID v7 ID 전략** 적용 — `uuid-creator` 라이브러리 `UuidCreator.getTimeOrderedEpoch()` + `@JdbcTypeCode(SqlTypes.UUID)`
 - 기존 `global` 패키지(`BaseTimeEntity`, `ErrorCode`, `PageResponse`)를 최대한 활용
 - Flyway 마이그레이션으로 스키마를 코드로 관리하여 재현 가능한 환경 보장
 - Swagger UI를 통한 즉시 테스트 가능한 API 문서 제공
@@ -89,7 +89,7 @@ Client Request → EventController.getEvent(id)
 | (자동 처리) | `global.exception.GlobalExceptionHandler` | Validation, BusinessException 처리 |
 | (자동 처리) | `global.config.JpaConfig` | JPA Auditing, QueryDSL |
 | (자동 처리) | `global.config.SwaggerConfig` | API 문서 자동 생성 |
-| (외부 라이브러리) | `com.github.f4b6a3:uuid-creator` | UUID v7 생성 (`build.gradle.kts`에 추가 필요) |
+| (외부 라이브러리) | `com.github.f4b6a3:uuid-creator:6.1.1` | UUID v7 생성 (`build.gradle.kts`에 추가 완료) |
 
 ---
 
@@ -100,14 +100,19 @@ Client Request → EventController.getEvent(id)
 #### Event Entity
 
 > Convention: 생성자 파라미터로 필드를 받고, body에서 `var ... = param` + `protected set`
-> ID: UUID v7 — `UuidCreator.getTimeOrderedEpoch()` + `Persistable<UUID>` 구현
+> ID: UUID v7 — `UuidCreator.getTimeOrderedEpoch()` + `@JdbcTypeCode(SqlTypes.UUID)` (Hibernate 6+ 네이티브 매핑)
+> 시간 타입: `Instant` 사용 (타임존 독립적 UTC 시각)
 > `BaseTimeEntity()` 상속 → createdAt, updatedAt 자동 관리
 
 ```kotlin
-package com.beomjin.springeventlab.domain.event.entity
+package com.beomjin.springeventlab.event.entity
 
+import com.beomjin.springeventlab.global.common.BaseTimeEntity
 import com.github.f4b6a3.uuid.UuidCreator
-import org.springframework.data.domain.Persistable
+import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
+import java.time.Instant
 import java.util.UUID
 
 @Entity
@@ -116,50 +121,38 @@ class Event(
     title: String,
     totalQuantity: Int,
     eventStatus: EventStatus,
-    startedAt: LocalDateTime,
-    endedAt: LocalDateTime,
-) : BaseTimeEntity(), Persistable<UUID> {
-
+    startedAt: Instant,
+    endedAt: Instant,
+) : BaseTimeEntity() {
     @Id
-    @Column(columnDefinition = "UUID")
-    private val id: UUID = UuidCreator.getTimeOrderedEpoch()
+    @JdbcTypeCode(SqlTypes.UUID)
+    @Column(updatable = false, nullable = false, comment = "이벤트 PK")
+    var id: UUID = UuidCreator.getTimeOrderedEpoch()
+        protected set
 
-    override fun getId(): UUID = id
-
-    @Transient
-    private var _isNew: Boolean = true
-
-    override fun isNew(): Boolean = _isNew
-
-    @PostPersist
-    @PostLoad
-    fun markNotNew() {
-        _isNew = false
-    }
-
-    @Column(nullable = false, length = 200, columnDefinition = "VARCHAR(200) COMMENT '이벤트 제목'")
+    @Column(nullable = false, length = 200, comment = "이벤트 제목")
     var title: String = title
         protected set
 
-    @Column(nullable = false, columnDefinition = "INT COMMENT '총 수량'")
+    @Column(nullable = false, comment = "총 수량")
     var totalQuantity: Int = totalQuantity
         protected set
 
-    @Column(nullable = false, columnDefinition = "INT COMMENT '발급된 수량'")
+    @Column(nullable = false, comment = "발급된 수량")
     var issuedQuantity: Int = 0
         protected set
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20, columnDefinition = "VARCHAR(20) COMMENT '이벤트 상태'")
+    @Column(nullable = false, length = 20, comment = "이벤트 상태")
     var eventStatus: EventStatus = eventStatus
         protected set
 
-    @Column(nullable = false, columnDefinition = "TIMESTAMP COMMENT '시작 시각'")
-    var startedAt: LocalDateTime = startedAt
+    @Column(nullable = false, comment = "시작 시각")
+    var startedAt: Instant = startedAt
         protected set
 
-    @Column(nullable = false, columnDefinition = "TIMESTAMP COMMENT '종료 시각'")
-    var endedAt: LocalDateTime = endedAt
+    @Column(nullable = false, comment = "종료 시각")
+    var endedAt: Instant = endedAt
         protected set
 
     // --- 도메인 로직 ---
@@ -169,8 +162,7 @@ class Event(
         get() = totalQuantity - issuedQuantity
 
     /** 발급 가능 여부 확인 */
-    fun isIssuable(): Boolean =
-        eventStatus == EventStatus.OPEN && remainingQuantity > 0
+    fun isIssuable(): Boolean = eventStatus == EventStatus.OPEN && remainingQuantity > 0
 
     /** 쿠폰 1장 발급 처리 (재고 차감) — redis-stock에서 사용 예정 */
     fun issue() {
@@ -199,11 +191,10 @@ class Event(
 > 3. **정렬 가능**: UUID v7은 앞 48비트가 타임스탬프라서 생성 순서대로 정렬됨 (B-tree 인덱스 성능 우수)
 > 4. **uuid-creator**: `UuidCreator.getTimeOrderedEpoch()`로 RFC 9562 UUID v7 생성
 >
-> `Persistable<UUID>`를 구현하는 이유:
-> Spring Data JPA의 `save()`는 내부적으로 `isNew()`를 호출하여 `persist`(INSERT) vs `merge`(UPDATE)를 결정한다.
-> ID가 `Long`이면 `id == 0L`으로 new 판단이 가능하지만, UUID는 항상 non-null이므로 JPA가 항상 `merge`를 시도한다.
-> `Persistable<UUID>`를 구현하여 `@Transient _isNew` 플래그로 직접 new 여부를 제어한다.
-> `@PostPersist`(저장 후), `@PostLoad`(조회 후)에서 `_isNew = false`로 설정한다.
+> **`@JdbcTypeCode(SqlTypes.UUID)` vs `@Column(columnDefinition = "UUID")`**:
+> Hibernate 6+ 에서는 `@JdbcTypeCode`가 권장 방식이다. `columnDefinition`은 DDL 생성에만 영향을 주지만,
+> `@JdbcTypeCode`는 JDBC 레벨에서 UUID 타입 매핑을 제어하여 PostgreSQL 네이티브 UUID 타입과 정확히 매핑된다.
+> Flyway로 DDL을 관리하므로(`ddl-auto: validate`) `columnDefinition`은 불필요하다.
 
 **학습 포인트: 왜 Entity에 도메인 로직을 두는가?**
 > Service에서 `event.eventStatus = EventStatus.OPEN` 처럼 직접 필드를 바꾸면, 상태 전이 규칙(READY→OPEN만 가능)을 매번 Service에서 검증해야 한다. Entity 내부에 `open()`, `close()` 메서드를 두면 **비즈니스 규칙이 한 곳에 집중**되어 유지보수가 쉬워진다. 이것이 **Rich Domain Model** 패턴이다.
@@ -211,14 +202,16 @@ class Event(
 #### EventStatus Enum
 
 ```kotlin
-package com.beomjin.springeventlab.domain.event.entity
+package com.beomjin.springeventlab.event.entity
 
-enum class EventStatus(val description: String) {
+enum class EventStatus(
+    val description: String,
+) {
     READY("이벤트 준비 중 (시작 전)"),
     OPEN("이벤트 진행 중 (발급 가능)"),
     CLOSED("이벤트 종료"),
-    ;
 
+    // TODO : 상태전환 머신 구현
     // 상태 전이 다이어그램:
     // READY → OPEN → CLOSED
     // (역방향 전이 불가)
@@ -228,45 +221,33 @@ enum class EventStatus(val description: String) {
 #### CouponIssue Entity (스키마만, 로직은 redis-stock에서)
 
 ```kotlin
-package com.beomjin.springeventlab.domain.event.entity
+package com.beomjin.springeventlab.coupon.entity
 
+import com.beomjin.springeventlab.global.common.BaseCreatedTimeEntity
 import com.github.f4b6a3.uuid.UuidCreator
-import org.springframework.data.domain.Persistable
+import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.util.UUID
 
 @Entity
-@Table(
-    name = "coupon_issue",
-    uniqueConstraints = [UniqueConstraint(name = "uk_coupon_issue", columnNames = ["event_id", "user_id"])]
-)
+@Table(name = "coupon_issue")
 class CouponIssue(
     eventId: UUID,
-    userId: Long,
-) : BaseCreatedTimeEntity(), Persistable<UUID> {
-
+    userId: UUID,
+) : BaseCreatedTimeEntity() {
     @Id
-    @Column(columnDefinition = "UUID")
-    private val id: UUID = UuidCreator.getTimeOrderedEpoch()
+    @JdbcTypeCode(SqlTypes.UUID)
+    @Column(updatable = false, nullable = false, comment = "쿠폰_발급 PK")
+    var id: UUID = UuidCreator.getTimeOrderedEpoch()
+        protected set
 
-    override fun getId(): UUID = id
-
-    @Transient
-    private var _isNew: Boolean = true
-
-    override fun isNew(): Boolean = _isNew
-
-    @PostPersist
-    @PostLoad
-    fun markNotNew() {
-        _isNew = false
-    }
-
-    @Column(nullable = false, columnDefinition = "UUID COMMENT '이벤트 ID'")
+    @Column(nullable = false, comment = "이벤트 ID")
     var eventId: UUID = eventId
         protected set
 
-    @Column(nullable = false, columnDefinition = "BIGINT COMMENT '사용자 ID'")
-    var userId: Long = userId
+    @Column(nullable = false, comment = "사용자 ID")
+    var userId: UUID = userId
         protected set
 }
 ```
@@ -278,19 +259,20 @@ class CouponIssue(
   │                    │
   ├─ id: UUID (PK)     ├─ id: UUID (PK)
   ├─ title             ├─ eventId: UUID (FK → event.id)
-  ├─ totalQuantity     ├─ userId: Long
+  ├─ totalQuantity     ├─ userId: UUID
   ├─ issuedQuantity    └─ createdAt
   ├─ eventStatus
-  ├─ startedAt
-  ├─ endedAt
+  ├─ startedAt (Instant)
+  ├─ endedAt (Instant)
   ├─ createdAt
   └─ updatedAt
 
-  * PK: UUID v7 (UuidCreator.getTimeOrderedEpoch())
+  * PK: UUID v7 (UuidCreator.getTimeOrderedEpoch()) + @JdbcTypeCode(SqlTypes.UUID)
   * FK 관계는 DDL에서 REFERENCES로 정의
   * JPA 연관관계 매핑은 redis-stock에서 필요 시 추가
   * 현재는 eventId를 UUID 필드로 보관 (불필요한 JOIN 방지)
-  * userId는 Long 유지 (User 엔티티 미구현, 향후 변경 가능)
+  * userId는 UUID 타입 (User 엔티티 미구현, UUID로 통일)
+  * Event → BaseTimeEntity (createdAt+updatedAt), CouponIssue → BaseCreatedTimeEntity (createdAt만)
 ```
 
 ### 3.3 Flyway Migration
@@ -298,19 +280,20 @@ class CouponIssue(
 > `src/main/resources/db/migration/` 경로에 작성
 > JPA `ddl-auto: validate` — Flyway가 DDL 관리, JPA는 검증만 수행
 
-#### V1__create_event_table.sql
+#### V20260409174330__create_event_table.sql
 
 ```sql
-CREATE TABLE event (
-    id              UUID            PRIMARY KEY,
-    title           VARCHAR(200)    NOT NULL,
-    total_quantity  INT             NOT NULL,
-    issued_quantity INT             NOT NULL DEFAULT 0,
-    event_status    VARCHAR(20)     NOT NULL DEFAULT 'READY',
-    started_at      TIMESTAMP       NOT NULL,
-    ended_at        TIMESTAMP       NOT NULL,
-    created_at      TIMESTAMP       NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMP       NOT NULL DEFAULT NOW()
+CREATE TABLE event
+(
+    id              UUID PRIMARY KEY,
+    title           VARCHAR(200) NOT NULL,
+    total_quantity  INT          NOT NULL DEFAULT 0,
+    issued_quantity INT          NOT NULL DEFAULT 0,
+    event_status    VARCHAR(20)  NOT NULL DEFAULT 'READY',
+    started_at      TIMESTAMP    NOT NULL,
+    ended_at        TIMESTAMP    NOT NULL,
+    created_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
 COMMENT ON TABLE event IS '선착순 이벤트';
@@ -322,21 +305,22 @@ COMMENT ON COLUMN event.started_at IS '시작 시각';
 COMMENT ON COLUMN event.ended_at IS '종료 시각';
 ```
 
-> **PostgreSQL UUID 타입**: 16바이트 고정 크기로 저장. UUID v7은 앞부분이 타임스탬프이므로 B-tree 인덱스에서 순차 삽입 패턴 → UUID v4 대비 인덱스 성능 우수. `DEFAULT`절 없음 — 애플리케이션(UuidCreator)에서 생성.
+> **PostgreSQL UUID 타입**: 16바이트 고정 크기로 저장. UUID v7은 앞부분이 타임스탬프이므로 B-tree 인덱스에서 순차 삽입 패턴 → UUID v4 대비 인덱스 성능 우수. `DEFAULT`절 없음 — 애플리케이션(UuidCreator)에서 생성. 마이그레이션 파일명은 타임스탬프 기반(`V{yyyyMMddHHmmss}__`)으로 충돌 방지.
 
-#### V2__create_coupon_issue_table.sql
+#### V20260409174359__create_coupon_issue_table.sql
 
 ```sql
-CREATE TABLE coupon_issue (
-    id          UUID            PRIMARY KEY,
-    event_id    UUID            NOT NULL REFERENCES event(id),
-    user_id     BIGINT          NOT NULL,
-    created_at  TIMESTAMP       NOT NULL DEFAULT NOW(),
+CREATE TABLE coupon_issue
+(
+    id         UUID PRIMARY KEY,
+    event_id   UUID      NOT NULL REFERENCES event (id),
+    user_id    UUID      NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     CONSTRAINT uk_coupon_issue UNIQUE (event_id, user_id)
 );
 
-CREATE INDEX idx_coupon_issue_event_id ON coupon_issue(event_id);
-CREATE INDEX idx_coupon_issue_user_id ON coupon_issue(user_id);
+CREATE INDEX idx_coupon_issue_event_id ON coupon_issue (event_id);
+CREATE INDEX idx_coupon_issue_user_id ON coupon_issue (user_id);
 
 COMMENT ON TABLE coupon_issue IS '쿠폰 발급 이력';
 COMMENT ON COLUMN coupon_issue.event_id IS '이벤트 ID';
@@ -364,8 +348,8 @@ COMMENT ON COLUMN coupon_issue.user_id IS '사용자 ID';
 {
   "title": "2026년 여름 쿠폰 이벤트",
   "totalQuantity": 1000,
-  "startedAt": "2026-05-01T00:00:00",
-  "endedAt": "2026-05-31T23:59:59"
+  "startedAt": "2026-05-01T00:00:00Z",
+  "endedAt": "2026-05-31T23:59:59Z"
 }
 ```
 
@@ -387,10 +371,10 @@ COMMENT ON COLUMN coupon_issue.user_id IS '사용자 ID';
   "issuedQuantity": 0,
   "remainingQuantity": 1000,
   "eventStatus": "READY",
-  "startedAt": "2026-05-01T00:00:00",
-  "endedAt": "2026-05-31T23:59:59",
-  "createdAt": "2026-04-09T10:00:00",
-  "updatedAt": "2026-04-09T10:00:00"
+  "startedAt": "2026-05-01T00:00:00Z",
+  "endedAt": "2026-05-31T23:59:59Z",
+  "createdAt": "2026-04-09T10:00:00Z",
+  "updatedAt": "2026-04-09T10:00:00Z"
 }
 ```
 
@@ -414,10 +398,10 @@ COMMENT ON COLUMN coupon_issue.user_id IS '사용자 ID';
       "issuedQuantity": 150,
       "remainingQuantity": 850,
       "eventStatus": "OPEN",
-      "startedAt": "2026-05-01T00:00:00",
-      "endedAt": "2026-05-31T23:59:59",
-      "createdAt": "2026-04-09T10:00:00",
-      "updatedAt": "2026-04-09T12:00:00"
+      "startedAt": "2026-05-01T00:00:00Z",
+      "endedAt": "2026-05-31T23:59:59Z",
+      "createdAt": "2026-04-09T10:00:00Z",
+      "updatedAt": "2026-04-09T12:00:00Z"
     }
   ],
   "page": 0,
@@ -439,7 +423,7 @@ COMMENT ON COLUMN coupon_issue.user_id IS '사용자 ID';
   "code": "E404",
   "message": "이벤트를 찾을 수 없습니다.",
   "errors": {},
-  "timestamp": "2026-04-09T10:00:00"
+  "timestamp": "2026-04-09T10:00:00Z"
 }
 ```
 
@@ -450,7 +434,7 @@ COMMENT ON COLUMN coupon_issue.user_id IS '사용자 ID';
 ### 5.1 EventCreateRequest
 
 ```kotlin
-package com.beomjin.springeventlab.domain.event.dto
+package com.beomjin.springeventlab.event.dto
 
 data class EventCreateRequest(
     @field:NotBlank(message = "이벤트 제목은 필수입니다")
@@ -462,10 +446,10 @@ data class EventCreateRequest(
     val totalQuantity: Int,
 
     @field:NotNull(message = "시작 시각은 필수입니다")
-    val startedAt: LocalDateTime,
+    val startedAt: Instant,
 
     @field:NotNull(message = "종료 시각은 필수입니다")
-    val endedAt: LocalDateTime,
+    val endedAt: Instant,
 ) {
     fun toEntity(): Event = Event(
         title = title,
@@ -483,7 +467,7 @@ data class EventCreateRequest(
 ### 5.2 EventResponse
 
 ```kotlin
-package com.beomjin.springeventlab.domain.event.dto
+package com.beomjin.springeventlab.event.dto
 
 data class EventResponse(
     val id: UUID,
@@ -492,10 +476,10 @@ data class EventResponse(
     val issuedQuantity: Int,
     val remainingQuantity: Int,
     val eventStatus: EventStatus,
-    val startedAt: LocalDateTime,
-    val endedAt: LocalDateTime,
-    val createdAt: LocalDateTime,
-    val updatedAt: LocalDateTime,
+    val startedAt: Instant,
+    val endedAt: Instant,
+    val createdAt: Instant?,
+    val updatedAt: Instant?,
 ) {
     companion object {
         fun from(event: Event): EventResponse = EventResponse(
@@ -521,7 +505,7 @@ data class EventResponse(
 ### 6.1 Repository
 
 ```kotlin
-package com.beomjin.springeventlab.domain.event.repository
+package com.beomjin.springeventlab.event.repository
 
 interface EventRepository : JpaRepository<Event, UUID> {
     fun findByEventStatus(eventStatus: EventStatus, pageable: Pageable): Page<Event>
@@ -537,7 +521,7 @@ interface CouponIssueRepository : JpaRepository<CouponIssue, UUID>
 ### 6.2 Service
 
 ```kotlin
-package com.beomjin.springeventlab.domain.event.service
+package com.beomjin.springeventlab.event.service
 
 @Service
 @Transactional(readOnly = true)
@@ -572,7 +556,7 @@ class EventService(
         return EventResponse.from(event)
     }
 
-    private fun validateDateRange(startedAt: LocalDateTime, endedAt: LocalDateTime) {
+    private fun validateDateRange(startedAt: Instant, endedAt: Instant) {
         if (startedAt >= endedAt) {
             throw BusinessException(ErrorCode.INVALID_EVENT_DATE)
         }
@@ -586,7 +570,7 @@ class EventService(
 ### 6.3 Controller
 
 ```kotlin
-package com.beomjin.springeventlab.domain.event.controller
+package com.beomjin.springeventlab.event.controller
 
 @RestController
 @RequestMapping("/api/v1/events")
@@ -677,27 +661,27 @@ src/main/kotlin/com/beomjin/springeventlab/
 │       ├── BusinessException.kt
 │       └── GlobalExceptionHandler.kt
 │
-├── domain/                          # (신규) 도메인 패키지
-│   └── event/
-│       ├── controller/
-│       │   └── EventController.kt   # REST API 엔드포인트
-│       ├── dto/
-│       │   ├── EventCreateRequest.kt # 생성 요청 DTO + Validation
-│       │   └── EventResponse.kt     # 응답 DTO + from() 팩토리
-│       ├── entity/
-│       │   ├── Event.kt             # 이벤트 엔티티 (Rich Domain Model)
-│       │   ├── EventStatus.kt       # 상태 enum
-│       │   └── CouponIssue.kt       # 쿠폰 발급 엔티티 (스키마만)
-│       ├── repository/
-│       │   ├── EventRepository.kt   # JPA Repository
-│       │   └── CouponIssueRepository.kt
-│       └── service/
-│           └── EventService.kt      # 비즈니스 로직
+├── coupon/                          # (현재) Flash Sale 도메인
+│   └── entity/                      # 엔티티 구현 완료
+│       ├── Event.kt                 # 이벤트 엔티티 (package: event.entity)
+│       ├── EventStatus.kt           # 상태 enum (package: event.entity)
+│       └── CouponIssue.kt           # 쿠폰 발급 엔티티 (package: coupon.entity)
+│   (이후 구현 시 추가)
+│   ├── controller/
+│   │   └── EventController.kt       # REST API 엔드포인트
+│   ├── dto/
+│   │   ├── EventCreateRequest.kt    # 생성 요청 DTO + Validation
+│   │   └── EventResponse.kt         # 응답 DTO + from() 팩토리
+│   ├── repository/
+│   │   ├── EventRepository.kt       # JPA Repository
+│   │   └── CouponIssueRepository.kt
+│   └── service/
+│       └── EventService.kt          # 비즈니스 로직
 │
 src/main/resources/
 └── db/migration/
-    ├── V1__create_event_table.sql
-    └── V2__create_coupon_issue_table.sql
+    ├── V20260409174330__create_event_table.sql
+    └── V20260409174359__create_coupon_issue_table.sql
 ```
 
 ---
@@ -706,17 +690,17 @@ src/main/resources/
 
 > 각 단계는 이전 단계가 완료되어야 다음으로 진행할 수 있다.
 
-| Step | Task | Files | 설명 |
-|------|------|-------|------|
-| 1 | uuid-creator 의존성 추가 | `build.gradle.kts` | `com.github.f4b6a3:uuid-creator` 추가 |
-| 2 | Flyway 마이그레이션 | `V1__create_event_table.sql`, `V2__create_coupon_issue_table.sql` | UUID PK 스키마 |
-| 3 | Entity + Enum | `Event.kt`, `EventStatus.kt`, `CouponIssue.kt` | UUID v7 + Persistable 패턴 |
-| 4 | ErrorCode 추가 | `ErrorCode.kt` 수정 | `EVENT_NOT_FOUND`, `INVALID_EVENT_DATE` 추가 |
-| 5 | Repository | `EventRepository.kt`, `CouponIssueRepository.kt` | `JpaRepository<Event, UUID>` |
-| 6 | DTO | `EventCreateRequest.kt`, `EventResponse.kt` | id 타입 UUID 반영 |
-| 7 | Service | `EventService.kt` | 비즈니스 로직 |
-| 8 | Controller | `EventController.kt` | API 엔드포인트 |
-| 9 | 통합 테스트 | Docker Compose 실행 후 Swagger UI 검증 | E2E 확인 |
+| Step | Task | Files | 설명 | Status |
+|------|------|-------|------|:------:|
+| 1 | uuid-creator 의존성 추가 | `build.gradle.kts` | `com.github.f4b6a3:uuid-creator:6.1.1` 추가 | ✅ |
+| 2 | Flyway 마이그레이션 | `V20260409174330__`, `V20260409174359__` | UUID PK + userId UUID 스키마 | ✅ |
+| 3 | Entity + Enum | `Event.kt`, `EventStatus.kt`, `CouponIssue.kt` | UUID v7 + @JdbcTypeCode + Instant | ✅ |
+| 4 | ErrorCode 추가 | `ErrorCode.kt` 수정 | `EVENT_NOT_FOUND`, `INVALID_EVENT_DATE` 추가 | Pending |
+| 5 | Repository | `EventRepository.kt`, `CouponIssueRepository.kt` | `JpaRepository<Event, UUID>` | Pending |
+| 6 | DTO | `EventCreateRequest.kt`, `EventResponse.kt` | Instant 타입 반영 | Pending |
+| 7 | Service | `EventService.kt` | 비즈니스 로직 | Pending |
+| 8 | Controller | `EventController.kt` | API 엔드포인트 | Pending |
+| 9 | 통합 테스트 | Docker Compose 실행 후 Swagger UI 검증 | E2E 확인 | Pending |
 
 ---
 
@@ -755,3 +739,4 @@ src/main/resources/
 |---------|------|---------|--------|
 | 0.1 | 2026-04-09 | Initial draft | beomjin |
 | 0.2 | 2026-04-09 | UUID v7 ID 전략 적용 (UuidCreator + Persistable) | beomjin |
+| 0.3 | 2026-04-10 | 실제 구현 엔티티에 맞춰 동기화 (JdbcTypeCode, Instant, userId UUID, Persistable 제거, 타임스탬프 마이그레이션 네이밍, 패키지 구조) | beomjin |
