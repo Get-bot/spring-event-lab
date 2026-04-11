@@ -3,7 +3,6 @@ package com.beomjin.springeventlab.coupon.repository
 import com.beomjin.springeventlab.coupon.dto.request.EventSearchCond
 import com.beomjin.springeventlab.coupon.entity.Event
 import com.beomjin.springeventlab.coupon.entity.QEvent.Companion.event
-import com.beomjin.springeventlab.coupon.service.EventQuery
 import com.querydsl.core.types.dsl.BooleanExpression
 import com.querydsl.jpa.impl.JPAQueryFactory
 import org.springframework.data.domain.Page

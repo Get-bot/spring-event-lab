@@ -1,9 +1,9 @@
-package com.beomjin.springeventlab.coupon.service
+package com.beomjin.springeventlab.coupon.repository
 
 import com.beomjin.springeventlab.coupon.dto.request.EventPeriod
 import com.beomjin.springeventlab.coupon.dto.request.EventSearchType
-import com.beomjin.springeventlab.coupon.entity.QEvent.Companion.event
 import com.beomjin.springeventlab.coupon.entity.EventStatus
+import com.beomjin.springeventlab.coupon.entity.QEvent.Companion.event
 import com.querydsl.core.types.OrderSpecifier
 import com.querydsl.core.types.dsl.BooleanExpression
 import com.querydsl.core.types.dsl.ComparableExpressionBase
@@ -74,7 +74,7 @@ object EventQuery {
         )
 
     /**
-     * Spring Data [Sort] → QueryDSL [OrderSpecifier] 배열.
+     * Spring Data [org.springframework.data.domain.Sort] → QueryDSL [com.querydsl.core.types.OrderSpecifier] 배열.
      * 허용되지 않은 필드는 조용히 무시, 빈 정렬이면 `createdAt DESC` 기본값.
      */
     fun orders(sort: Sort): Array<OrderSpecifier<*>> =
