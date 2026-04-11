@@ -16,7 +16,7 @@ data class EventCreateRequest(
     @field:NotBlank(message = "이벤트 제목은 필수입니다")
     @field:Size(max = 200, message = "이벤트 제목은 200자 이하여야 합니다")
     @Schema(description = "이벤트 제목", example = "2026년 여름 쿠폰 이벤트", requiredMode = REQUIRED)
-    val title: String?,
+    val title: String,
     @field:NotNull(message = "총 수량은 필수입니다")
     @field:Min(value = 1, message = "총 수량은 1 이상이어야 합니다")
     @Schema(description = "총 발급 수량 (1 이상)", example = "1000", requiredMode = REQUIRED)
@@ -30,7 +30,7 @@ data class EventCreateRequest(
 ) {
     fun toEntity(): Event =
         Event(
-            title = title!!,
+            title = title,
             totalQuantity = totalQuantity!!,
             eventStatus = EventStatus.READY,
             period = DateRange(startedAt!!, endedAt!!),
