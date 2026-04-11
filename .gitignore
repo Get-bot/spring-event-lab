@@ -38,3 +38,14 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### Environment ###
+.env
+!.env.example
+
+### bkit local state ###
+.bkit/state/
+.bkit/runtime/
+
+### Claude Code local settings ###
+.claude/settings.local.json

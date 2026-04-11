@@ -6,6 +6,7 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.kafka.KafkaContainer
 import org.testcontainers.utility.DockerImageName
@@ -16,21 +17,21 @@ import org.testcontainers.utility.DockerImageName
 abstract class IntegrationTestBase {
 
     companion object {
-        @JvmStatic
-        val postgres = PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine"))
+        @Container
+        @JvmField
+        val postgres: PostgreSQLContainer<*> =
+            PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine"))
 
-        @JvmStatic
-        val redis = GenericContainer(DockerImageName.parse("redis:7-alpine"))
-            .withExposedPorts(6379)
+        @Container
+        @JvmField
+        val redis: GenericContainer<*> =
+            GenericContainer(DockerImageName.parse("redis:7-alpine"))
+                .withExposedPorts(6379)
 
-        @JvmStatic
-        val kafka = KafkaContainer(DockerImageName.parse("apache/kafka-native:latest"))
-
-        init {
-            postgres.start()
-            redis.start()
-            kafka.start()
-        }
+        @Container
+        @JvmField
+        val kafka: KafkaContainer =
+            KafkaContainer(DockerImageName.parse("apache/kafka-native:latest"))
 
         @JvmStatic
         @DynamicPropertySource

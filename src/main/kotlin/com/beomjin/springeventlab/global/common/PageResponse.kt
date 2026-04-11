@@ -13,7 +13,7 @@ data class PageResponse<T>(
         fun <T : Any> from(page: Page<T>) =
             PageResponse(
                 content = page.content,
-                page = page.number,
+                page = page.number + 1,
                 size = page.size,
                 totalElements = page.totalElements,
                 totalPages = page.totalPages,

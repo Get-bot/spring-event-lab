@@ -1,11 +1,13 @@
 package com.beomjin.springeventlab.coupon.entity
 
-import com.beomjin.springeventlab.event.entity.EventStatus
+import com.beomjin.springeventlab.coupon.entity.EventStatus
 import com.beomjin.springeventlab.global.common.BaseTimeEntity
+import com.beomjin.springeventlab.global.common.DateRange
 import com.beomjin.springeventlab.global.exception.BusinessException
 import com.beomjin.springeventlab.global.exception.ErrorCode
 import com.github.f4b6a3.uuid.UuidCreator
 import jakarta.persistence.Column
+import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
@@ -13,7 +15,6 @@ import jakarta.persistence.Id
 import jakarta.persistence.Table
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
-import java.time.Instant
 import java.util.UUID
 
 @Entity
@@ -22,8 +23,7 @@ class Event(
     title: String,
     totalQuantity: Int,
     eventStatus: EventStatus,
-    startedAt: Instant,
-    endedAt: Instant,
+    period: DateRange,
 ) : BaseTimeEntity() {
     @Id
     @JdbcTypeCode(SqlTypes.UUID)
@@ -48,12 +48,8 @@ class Event(
     var eventStatus: EventStatus = eventStatus
         protected set
 
-    @Column(nullable = false, comment = "시작 시각")
-    var startedAt: Instant = startedAt
-        protected set
-
-    @Column(nullable = false, comment = "종료 시각")
-    var endedAt: Instant = endedAt
+    @Embedded
+    var period: DateRange = period
         protected set
 
     // --- 도메인 로직 ---
@@ -62,15 +58,23 @@ class Event(
     val remainingQuantity: Int
         get() = totalQuantity - issuedQuantity
 
-    /** 발급 가능 여부 확인 */
-    fun isIssuable(): Boolean = eventStatus == EventStatus.OPEN && remainingQuantity > 0
+    /** 발급 가능 여부 확인 (throw 없이 boolean으로 확인) */
+    fun isIssuable(): Boolean = eventStatus.isIssuable && remainingQuantity > 0
 
-    /** 쿠폰 1장 발급 처리 (재고 차감) — redis-stock에서 사용 예정 */
+    /**
+     * 쿠폰 1장 발급 처리 (재고 차감) — redis-stock에서 사용 예정.
+     * 실패 원인을 구분해서 예외를 던진다:
+     * - 상태가 발급 허용이 아님 → [ErrorCode.EVENT_NOT_OPEN]
+     * - 재고 소진 → [ErrorCode.EVENT_OUT_OF_STOCK]
+     */
     fun issue() {
-        if (!isIssuable()) {
+        if (!eventStatus.isIssuable) {
+            throw BusinessException(ErrorCode.EVENT_NOT_OPEN, "status=$eventStatus")
+        }
+        if (remainingQuantity <= 0) {
             throw BusinessException(
-                ErrorCode.CONFLICT,
-                "발급 불가능한 상태입니다. status=$eventStatus, remaining=$remainingQuantity",
+                ErrorCode.EVENT_OUT_OF_STOCK,
+                "total=$totalQuantity, issued=$issuedQuantity",
             )
         }
         issuedQuantity++
