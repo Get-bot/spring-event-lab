@@ -1,6 +1,5 @@
 package com.beomjin.springeventlab.coupon.entity
 
-import com.beomjin.springeventlab.coupon.entity.EventStatus
 import com.beomjin.springeventlab.global.common.BaseTimeEntity
 import com.beomjin.springeventlab.global.common.DateRange
 import com.beomjin.springeventlab.global.exception.BusinessException
@@ -54,12 +53,8 @@ class Event(
 
     // --- 도메인 로직 ---
 
-    /** 잔여 수량 계산 */
     val remainingQuantity: Int
         get() = totalQuantity - issuedQuantity
-
-    /** 발급 가능 여부 확인 (throw 없이 boolean으로 확인) */
-    fun isIssuable(): Boolean = eventStatus.isIssuable && remainingQuantity > 0
 
     /**
      * 쿠폰 1장 발급 처리 (재고 차감) — redis-stock에서 사용 예정.
@@ -80,12 +75,10 @@ class Event(
         issuedQuantity++
     }
 
-    /** 이벤트 오픈 */
     fun open() {
         eventStatus = eventStatus.transitionTo(EventStatus.OPEN)
     }
 
-    /** 이벤트 종료 */
     fun close() {
         eventStatus = eventStatus.transitionTo(EventStatus.CLOSED)
     }

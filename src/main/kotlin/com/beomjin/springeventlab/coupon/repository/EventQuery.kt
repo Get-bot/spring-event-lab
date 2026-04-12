@@ -36,10 +36,23 @@ object EventQuery {
         now: Instant = Instant.now(),
     ): BooleanExpression? =
         when (period) {
-            null -> null
-            EventPeriod.UPCOMING -> event.period.startedAt.gt(now)
-            EventPeriod.ONGOING -> event.period.startedAt.loe(now).and(event.period.endedAt.gt(now))
-            EventPeriod.ENDED -> event.period.endedAt.loe(now)
+            null -> {
+                null
+            }
+
+            EventPeriod.UPCOMING -> {
+                event.period.startedAt.gt(now)
+            }
+
+            EventPeriod.ONGOING -> {
+                event.period.startedAt
+                    .loe(now)
+                    .and(event.period.endedAt.gt(now))
+            }
+
+            EventPeriod.ENDED -> {
+                event.period.endedAt.loe(now)
+            }
         }
 
     /** 생성일 범위 필터 (from/to 모두 선택적) */
