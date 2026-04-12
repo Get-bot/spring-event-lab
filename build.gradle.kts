@@ -15,6 +15,7 @@ val queryDslVersion = "7.1"
 val springDocVersion = "3.0.2"
 val kotlinLoggingVersion = "7.0.3"
 val redissonVersion = "4.3.0"
+val koTestVersion = "6.1.0"
 
 java {
     toolchain {
@@ -82,14 +83,13 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-postgresql")
 
     // Kotest — Kotlin-native assertions (shouldBe, shouldThrow<T>)
-    testImplementation("io.kotest:kotest-runner-junit5:5.9.1")
-    testImplementation("io.kotest:kotest-assertions-core:5.9.1")
+    testImplementation("io.kotest:kotest-runner-junit5:$koTestVersion")
+    testImplementation("io.kotest:kotest-assertions-core:$koTestVersion")
 
     // MockK — Kotlin-native mocking (L2 Service unit)
-    testImplementation("io.mockk:mockk:1.14.3")
+    testImplementation("io.mockk:mockk:1.14.9")
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    implementation(kotlin("stdlib"))
 }
 
 dependencyManagement {
