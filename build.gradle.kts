@@ -3,6 +3,7 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
     id("org.jetbrains.kotlinx.kover") version "0.9.8"
     id("com.google.devtools.ksp") version "2.3.6"
+    id("io.kotest") version "6.1.0"
     kotlin("jvm") version "2.3.20"
     kotlin("plugin.spring") version "2.3.20"
     kotlin("plugin.jpa") version "2.3.20"
@@ -85,6 +86,7 @@ dependencies {
     // Kotest — Kotlin-native assertions (shouldBe, shouldThrow<T>)
     testImplementation("io.kotest:kotest-runner-junit5:$koTestVersion")
     testImplementation("io.kotest:kotest-assertions-core:$koTestVersion")
+    testImplementation("io.kotest:kotest-extensions-spring:$koTestVersion")
 
     // MockK — Kotlin-native mocking (L2 Service unit)
     testImplementation("io.mockk:mockk:1.14.9")
@@ -100,7 +102,7 @@ dependencyManagement {
 
 kotlin {
     compilerOptions {
-        freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property")
+        freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property", "-Xpower-assert")
     }
 
     sourceSets.main {
@@ -108,6 +110,7 @@ kotlin {
     }
 }
 
-tasks.withType<Test> {
+tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    jvmArgs("-XX:+EnableDynamicAgentLoading")
 }
