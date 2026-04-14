@@ -91,6 +91,9 @@ dependencies {
     // MockK — Kotlin-native mocking (L2 Service unit)
     testImplementation("io.mockk:mockk:1.14.9")
 
+    // SpringMockK — @MockkBean for Spring Boot (L3 Slice)
+    testImplementation("com.ninja-squad:springmockk:5.0.1")
+
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

@@ -235,11 +235,11 @@ class RepoTest : FunSpec({ ... })
 @WebMvcTest(EventController::class)
 class ControllerTest : FunSpec({ ... })
 
-// @MockitoBean — Spring Context의 빈을 mock으로 교체
+// @MockkBean (springmockk 5.0.1) — Spring Context의 빈을 MockK mock으로 교체
 // Kotest에서는 생성자 주입으로 사용:
 class ControllerTest(
     private val mockMvc: MockMvc,
-    @MockitoBean private val eventService: EventService,  // 가짜 Service
+    @MockkBean private val eventService: EventService,  // MockK 가짜 Service
 ) : FunSpec({ ... })
 ```
 
@@ -317,7 +317,7 @@ object ProjectConfig : AbstractProjectConfig() {
 │                                                                     │
 │  ┌─ L3: FunSpec + SpringExtension ──────────────────────────────┐  │
 │  │ EventQueryRepositoryTest (@DataJpaTest + Testcontainers)      │  │
-│  │ EventControllerTest (@WebMvcTest + @MockitoBean)              │  │
+│  │ EventControllerTest (@WebMvcTest + @MockkBean)                │  │
 │  └───────────────────────────────────────────────────────────────┘ │
 │                                                                     │
 │  ┌─ L4: FunSpec + SpringExtension ──────────────────────────────┐  │
@@ -1349,13 +1349,13 @@ class EventQueryRepositoryTest(
 @WebMvcTest(EventController::class)
 class EventControllerTest(
     private val mockMvc: MockMvc,
-    @MockitoBean private val eventService: EventService,
+    @MockkBean private val eventService: EventService,
 ) : FunSpec({
 
     // === POST /api/v1/events ===
 
     test("POST 정상 요청은 201과 EventResponse를 반환한다") {
-        given(eventService.create(any())).willReturn(EventFixture.response())
+        every { eventService.create(any()) } returns EventFixture.response()
 
         mockMvc.post("/api/v1/events") {
             contentType = MediaType.APPLICATION_JSON
@@ -1368,40 +1368,28 @@ class EventControllerTest(
         }
     }
 
-    test("POST title이 빈 문자열이면 400 INVALID_INPUT") {
-        mockMvc.post("/api/v1/events") {
-            contentType = MediaType.APPLICATION_JSON
-            content = EventFixture.createRequestJson(title = "")
-        }.andExpect {
-            status { isBadRequest() }
-            jsonPath("$.code") { value("C400") }
-        }
-    }
+    context("POST /api/v1/events - 유효성 검사 실패 (400)") {
+        data class BadRequestCase(val description: String, val payload: String)
 
-    test("POST totalQuantity=0이면 400") {
-        mockMvc.post("/api/v1/events") {
-            contentType = MediaType.APPLICATION_JSON
-            content = EventFixture.createRequestJson(totalQuantity = 0)
-        }.andExpect {
-            status { isBadRequest() }
-        }
-    }
-
-    test("POST startedAt 누락이면 400") {
-        val json = """{"title":"test","totalQuantity":10,"endedAt":"2026-07-07T23:59:59Z"}"""
-        mockMvc.post("/api/v1/events") {
-            contentType = MediaType.APPLICATION_JSON
-            content = json
-        }.andExpect {
-            status { isBadRequest() }
+        withData(
+            nameFn = { it.description },
+            BadRequestCase("title이 빈 문자열", EventFixture.createRequestJson(title = "")),
+            BadRequestCase("totalQuantity가 0", EventFixture.createRequestJson(totalQuantity = 0)),
+            BadRequestCase("startedAt 누락", """{"title":"test","totalQuantity":10,"endedAt":"2026-07-07T23:59:59Z"}"""),
+        ) { (_, payload) ->
+            mockMvc.post("/api/v1/events") {
+                contentType = MediaType.APPLICATION_JSON
+                content = payload
+            }.andExpect {
+                status { isBadRequest() }
+            }
         }
     }
 
     // === GET /api/v1/events ===
 
     test("GET 정상 요청은 200과 PageResponse를 반환한다") {
-        given(eventService.getEvents(any(), any()))
-            .willReturn(PageResponse.from(Page.empty()))
+        every { eventService.getEvents(any(), any()) } returns PageResponse.from(Page.empty())
 
         mockMvc.get("/api/v1/events")
             .andExpect {
@@ -1411,26 +1399,24 @@ class EventControllerTest(
     }
 
     test("GET page=1&size=20은 0-based Pageable(pageNumber=0)로 Service에 전달한다") {
-        val captor = argumentCaptor<Pageable>()
-        given(eventService.getEvents(any(), captor.capture()))
-            .willReturn(PageResponse.from(Page.empty()))
+        val pageableSlot = slot<Pageable>()
+        every { eventService.getEvents(any(), capture(pageableSlot)) } returns PageResponse.from(Page.empty())
 
         mockMvc.get("/api/v1/events?page=1&size=20")
             .andExpect { status { isOk() } }
 
-        captor.firstValue.pageNumber shouldBe 0   // 1-based → 0-based
-        captor.firstValue.pageSize shouldBe 20
+        pageableSlot.captured.pageNumber shouldBe 0   // 1-based → 0-based
+        pageableSlot.captured.pageSize shouldBe 20
     }
 
     test("GET statuses=OPEN&statuses=READY는 List<EventStatus>로 바인딩된다") {
-        val condCaptor = argumentCaptor<EventSearchCond>()
-        given(eventService.getEvents(condCaptor.capture(), any()))
-            .willReturn(PageResponse.from(Page.empty()))
+        val condSlot = slot<EventSearchCond>()
+        every { eventService.getEvents(capture(condSlot), any()) } returns PageResponse.from(Page.empty())
 
         mockMvc.get("/api/v1/events?statuses=OPEN&statuses=READY")
             .andExpect { status { isOk() } }
 
-        condCaptor.firstValue.statuses shouldContainExactlyInAnyOrder
+        condSlot.captured.statuses shouldContainExactlyInAnyOrder
             listOf(EventStatus.OPEN, EventStatus.READY)
     }
 
@@ -1443,7 +1429,7 @@ class EventControllerTest(
 
     test("GET /{id} 정상 요청은 200과 EventResponse를 반환한다") {
         val response = EventFixture.response()
-        given(eventService.getEvent(any())).willReturn(response)
+        every { eventService.getEvent(any()) } returns response
 
         mockMvc.get("/api/v1/events/${response.id}")
             .andExpect {
@@ -1454,7 +1440,7 @@ class EventControllerTest(
 
     test("GET /{id} 존재하지 않는 ID는 404 EVENT_NOT_FOUND") {
         val id = UUID.randomUUID()
-        given(eventService.getEvent(id)).willThrow(BusinessException(ErrorCode.EVENT_NOT_FOUND))
+        every { eventService.getEvent(id) } throws BusinessException(ErrorCode.EVENT_NOT_FOUND)
 
         mockMvc.get("/api/v1/events/$id")
             .andExpect {
@@ -1471,28 +1457,18 @@ class EventControllerTest(
 > L3 Controller 테스트의 관심사는 **"HTTP 요청이 올바르게 파싱되고, 응답이 올바른 형식인가?"**이다.
 > Service 로직은 L2에서 이미 검증했으므로, 여기서는 "Service가 이런 값을 돌려준다"고 **가정**하고 테스트한다.
 >
-> **[HOW] @MockitoBean vs mockk의 차이 (L3에서만 Mockito를 쓰는 이유)**
+> **[HOW] mockk() vs @MockkBean의 차이 (L2 vs L3)**
 > ```kotlin
 > // L2 (MockK) — Spring 없이 직접 mock 생성
 > val repo = mockk<EventRepository>()
 > val service = EventService(repo, queryRepo)  // 직접 주입
 >
-> // L3 (@MockitoBean) — Spring이 빈을 mock으로 교체
-> @MockitoBean private val eventService: EventService  // Spring이 관리
+> // L3 (@MockkBean via springmockk 5.0.1) — Spring이 빈을 MockK mock으로 교체
+> @MockkBean private val eventService: EventService  // Spring이 관리
 > ```
-> `@MockitoBean`은 **Spring Context 안의 빈을 교체**하는 것이라 Spring 없이는 못 쓴다.
-> MockK로도 이걸 할 수 있지만(`@MockkBean`) Spring Boot 4에서는 아직 추가 구현이 필요해서,
-> **안전하게 Spring 기본 제공 @MockitoBean을 사용**한다.
->
-> **[TRAP] Mockito DSL vs MockK DSL 혼동 주의**
-> ```kotlin
-> // Mockito (L3에서 사용)
-> given(eventService.create(any())).willReturn(response)
->
-> // MockK (L2에서 사용) — 문법이 다르다!
-> every { eventService.create(any()) } returns response
-> ```
-> L3 파일에서 MockK 문법을 쓰면 컴파일 에러가 난다. import를 확인하자.
+> `@MockkBean`은 **Spring Context 안의 빈을 MockK mock으로 교체**하는 것이다.
+> `springmockk 5.0.1`이 Spring Framework 7의 BeanOverride API를 지원하면서 가능해졌다.
+> **전 계층(L2~L3)에서 동일한 MockK DSL(`every`/`verify`/`slot`)을 사용**할 수 있다.
 
 ---
 
@@ -1626,7 +1602,7 @@ class EventCrudIntegrationTest(
 | L2 | EventServiceTest | 6 | FunSpec + MockK |
 | **L2 소계** | | **6** | |
 | L3 | EventQueryRepositoryTest | 8 | FunSpec + Testcontainers |
-| L3 | EventControllerTest | 10 | FunSpec + @MockitoBean |
+| L3 | EventControllerTest | 10 | FunSpec + @MockkBean + withData |
 | **L3 소계** | | **18** | |
 | L4 | EventCrudIntegrationTest | 4 | FunSpec + E2E |
 | **L4 소계** | | **4** | |
@@ -1696,7 +1672,7 @@ class EventCrudIntegrationTest(
 | D-01 | L1은 DescribeSpec, L2~L4는 FunSpec | L1의 도메인 규칙은 계층적 구조(describe/context/it)가 Living Documentation에 효과적. L2~L4는 플랫한 test() 나열이 간결 |
 | D-02 | L1 경계값에 withData 적용 | 데이터 드리븐으로 누락 방지. 테스트 추가 시 데이터만 추가 |
 | D-03 | SingleInstance + clearAllMocks() | Spring 컨텍스트 캐싱 유지 + MockK 상태 격리 양립 |
-| D-04 | @MockitoBean (L3) 유지 | Custom @MockkBean은 BeanOverrideProcessor 구현 비용 대비 L3 테스트 수(10개)가 적음 |
+| D-04 | @MockkBean (springmockk 5.0.1) 도입 | springmockk 5.0.1이 Spring Framework 7 호환으로 출시. 전 계층 MockK DSL 통일 |
 | D-05 | IntegrationTestBase는 Spec 미상속 | 컨테이너 홀더 역할만. 하위 테스트가 직접 FunSpec 상속. Kotlin 다중 상속 불가 + Kotest 공식 권장 |
 | D-06 | Redis는 @DynamicPropertySource 유지 | GenericContainer는 @ServiceConnection 미지원. Postgres/Kafka만 전환 |
 | D-07 | EventFixture.openEvent() 헬퍼 | OPEN 상태 Event 생성이 빈번하므로 `event() + open()` 축약 |
@@ -1741,12 +1717,13 @@ val repo = mockk<EventRepository>(relaxed = true)  // 기본값 자동 반환
 WSL 환경: sudo service docker start
 ```
 
-### 에러 5: `@MockitoBean`이 컴파일 안 됨
+### 에러 5: `@MockkBean`이 컴파일 안 됨
 
 ```
-원인: import 경로 오류
-해결: import org.springframework.test.context.bean.override.mockito.MockitoBean
-      (구버전 경로인 org.springframework.boot.test.mock.mockito.MockBean이 아님!)
+원인: springmockk 의존성 누락 또는 import 경로 오류
+해결:
+  1. build.gradle.kts에 testImplementation("com.ninja-squad:springmockk:5.0.1") 확인
+  2. import com.ninjasquad.springmockk.MockkBean
 ```
 
 ### 에러 6: `withData`에서 `Unresolved reference`
@@ -1797,7 +1774,7 @@ WSL 환경: sudo service docker start
 ### Spring 테스트
 - [ ] `@DataJpaTest`와 `@SpringBootTest`의 차이를 안다
 - [ ] `@WebMvcTest`에서 MockMvc로 HTTP 요청을 보내봤다
-- [ ] `@MockitoBean`으로 Spring Bean을 mock으로 교체해봤다
+- [ ] `@MockkBean`(springmockk)으로 Spring Bean을 MockK mock으로 교체해봤다
 - [ ] `@ServiceConnection`이 @DynamicPropertySource를 대체하는 이유를 안다
 
 ### 테스트 설계
@@ -1812,4 +1789,5 @@ WSL 환경: sudo service docker start
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
 | 0.1 | 2026-04-13 | Plan v0.4 기반 신규 작성. Kotest 6.1.0 Specs 전면 적용, 10개 테스트 파일 81개 테스트 상세 설계. ProjectConfig/PackageConfig/IntegrationTestBase 리팩토링 명세. FR-T01~T17 전체 커버리지 매핑. | beomjin |
-| **0.2** | **2026-04-13** | **학습 가이드 추가**: Section 0 (학습 로드맵, Kotest/MockK/Spring 치트시트), 각 섹션별 [WHY]/[HOW]/[TRAP]/[TIP] 학습 포인트, Troubleshooting Guide, 학습 체크리스트 | beomjin |
+| 0.2 | 2026-04-13 | 학습 가이드 추가: Section 0, [WHY]/[HOW]/[TRAP]/[TIP] 학습 포인트, Troubleshooting Guide, 학습 체크리스트 | beomjin |
+| **0.3** | **2026-04-14** | **springmockk 5.0.1 도입 반영**: L3 `@MockitoBean` → `@MockkBean` 전환. Controller 테스트 코드를 MockK DSL(`every`/`slot`)로 변경. 유효성 검사 테스트에 `withData` 적용. 트러블슈팅/학습 체크리스트 업데이트. | beomjin |
