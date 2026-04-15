@@ -21,4 +21,11 @@ enum class ErrorCode(
     EVENT_NOT_OPEN("E409-1", "진행 중인 이벤트가 아닙니다."),
     EVENT_OUT_OF_STOCK("E409-2", "재고가 소진되었습니다."),
     EVENT_INVALID_STATUS_TRANSITION("E409-3", "허용되지 않은 이벤트 상태 전환입니다."),
+    EVENT_SOLD_OUT("E410", "이벤트 재고가 소진되었습니다."),
+
+    // Coupon Errors
+    COUPON_ALREADY_ISSUED("CI409-1", "이미 발급된 쿠폰입니다."),
+
+    // Redis Errors
+    REDIS_UNAVAILABLE("R503", "Redis 서비스에 일시적으로 접근할 수 없습니다."),
 }
