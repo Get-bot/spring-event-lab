@@ -13,27 +13,7 @@
 - **Persistence**: PostgreSQL 18 + Flyway + QueryDSL (openfeign fork, KSP)
 - **ID 전략**: UUID v7 (`uuid-creator`의 `UuidCreator.getTimeOrderedEpoch()` + `@JdbcTypeCode(SqlTypes.UUID)`)
 - **문서화**: SpringDoc OpenAPI (Swagger UI)
-- **테스트**: JUnit5 + Testcontainers
-
-## 프로젝트 구조
-
-```
-src/main/kotlin/com/beomjin/springeventlab/
-├── coupon/                    # 쿠폰/이벤트 도메인
-│   ├── controller/            # REST 엔드포인트
-│   ├── dto/
-│   │   ├── request/           # 요청 DTO + Bean Validation
-│   │   └── response/          # 응답 DTO (from() 팩토리)
-│   ├── entity/                # JPA Entity + 도메인 로직
-│   ├── repository/            # JpaRepository + QueryDSL
-│   └── service/
-│       ├── EventQuery.kt      # QueryDSL 표현식 모음 (where/order)
-│       └── EventService.kt    # 유스케이스 orchestration
-└── global/
-    ├── common/                # BaseTimeEntity, DateRange, PageResponse 등 공통
-    ├── config/                # JpaConfig (JPAQueryFactory), SwaggerConfig
-    └── exception/             # BusinessException, ErrorCode, GlobalExceptionHandler
-```
+- **테스트**: Kotest 6.1.0 + MockK 1.14.9 + springmockk 5.0.1 + Testcontainers (→ [테스트 작성 가이드](docs/engine/TEST_WRITE_GUIDE.md))
 
 ## 컨벤션
 
@@ -96,6 +76,14 @@ docker compose up
 - `src/main/resources/db/migration/V{YYYYMMDDHHMMSS}__{description}.sql`
 - Flyway가 앱 부팅 시 자동 실행 (`spring-boot-starter-flyway`)
 - `ddl-auto: validate`로 Entity↔스키마 불일치를 부팅 시 감지
+
+## Knowledge Base (`docs/engine/`)
+
+상세 가이드는 아래 문서 참조. CLAUDE.md는 맵 역할만 하며, 깊은 정보는 docs/engine/에 둔다.
+
+| 문서 | 내용 |
+|------|------|
+| [`TEST_WRITE_GUIDE.md`](docs/engine/TEST_WRITE_GUIDE.md) | 테스트 작성 종합 가이드 — 4계층 Test Pyramid, 계층별 패턴, Fixture, 트러블슈팅 |
 
 ## 알려진 주의사항
 
