@@ -308,7 +308,7 @@ test("TC-04: 발급 후 Redis issued Set 크기 == DB 발급 건수") {
     // Then — Redis와 DB 양쪽 검증
     val dbCount = couponIssueRepository.count()
     val redisIssuedSize = redisTemplate.opsForSet()
-        .size("coupon:issued:${event.id}") ?: 0
+        .size("coupon:issued:{${event.id}}") ?: 0
 
     dbCount shouldBe totalQuantity.toLong()
     redisIssuedSize shouldBe dbCount
@@ -453,3 +453,4 @@ src/test/kotlin/com/beomjin/springeventlab/
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
 | 0.1 | 2026-04-15 | Initial design — 4 TC, companion container 패턴, concurrentExecute 헬퍼, Redis flushAll 전략 | beomjin |
+| 0.2 | 2026-04-16 | redis-stock 구현 반영: Redis 키 hash tag `{$eventId}` 패턴 적용 | beomjin |

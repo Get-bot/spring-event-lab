@@ -89,11 +89,12 @@ redis-stock에서 구현한 선착순 발급 로직이 **진짜 동시성 환경
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| CouponIssueService | `coupon/service/CouponIssueService.kt` | 발급 유스케이스 orchestration |
-| RedisStockRepository | `coupon/repository/RedisStockRepository.kt` | Redis 재고 연산 |
+| CouponIssueService | `coupon/service/CouponIssueService.kt` | 발급 유스케이스 orchestration (트랜잭션 없음) |
+| CouponIssueTxService | `coupon/service/CouponIssueWriter.kt` | @Transactional DB 저장 + UK-aware 보상 |
+| RedisStockRepository | `coupon/repository/RedisStockRepository.kt` | Redis 재고 연산 (hash tag 키 패턴) |
 | CouponIssueRepository | `coupon/repository/CouponIssueRepository.kt` | DB 저장 |
 | IssueResult | `coupon/repository/IssueResult.kt` | Lua 반환 코드 enum |
-| issue_coupon.lua | `resources/scripts/issue_coupon.lua` | 원자적 재고 차감 |
+| issue_coupon.lua | `resources/scripts/issue_coupon.lua` | 원자적 재고 차감 + issued Set TTL |
 
 ---
 
@@ -215,7 +216,7 @@ test("TC-02: 동일 userId로 100 동시 요청 시 1건만 발급된다") {
 test("TC-04: 발급 후 Redis issued Set 크기 == DB 발급 건수") {
     // TC-01 실행 후 추가 검증
     val issuedSetSize = redisTemplate.opsForSet()
-        .size("coupon:issued:${event.id}")
+        .size("coupon:issued:{${event.id}}")
 
     issuedSetSize shouldBe couponIssueRepository.count()
 }
@@ -261,3 +262,4 @@ src/test/kotlin/com/beomjin/springeventlab/
 |---------|------|---------|--------|
 | 0.1 | 2026-04-09 | Initial draft | beomjin |
 | 0.2 | 2026-04-15 | event-crud-test 학습 반영: Kotest 6.1.0 FunSpec, IntegrationTestBase 재사용, startLatch 동시 출발 패턴, Redis-DB 정합성 검증 추가, DB 비관적 락 비교(TC-04) 제거 | beomjin |
+| 0.3 | 2026-04-16 | redis-stock 구현 반영: Redis 키 hash tag `{$eventId}`, CouponIssueTxService 분리, issued Set Lua TTL | beomjin |

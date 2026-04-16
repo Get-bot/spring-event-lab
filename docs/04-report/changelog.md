@@ -4,6 +4,72 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2026-04-16] - Redis Stock Management Feature Complete (PR #4 Review Fixes)
+
+### Added
+- **9개 신규 파일** — Lua 스크립트, Redis 관련 컴포넌트, DB 트랜잭션 분리 서비스
+  - `issue_coupon.lua` — SISMEMBER + GET/DECR + SADD + EXPIRE 원자적 스크립트
+  - `RedisConfig.kt` — RedisScript<Long> Bean 등록
+  - `RedisStockRepository.kt` — 재고 초기화, 발급 시도, 보상 처리
+  - `CouponIssueService.kt` — 발급 유스케이스 orchestration (no @Transactional)
+  - `CouponIssueTxService.kt` — DB 저장 + 예외 유형별 보상 (FIX-6)
+  - `CouponIssueController.kt` — REST 엔드포인트
+  - `CouponIssueRepository.kt`, `IssueResult.kt`, `CouponIssueResponse.kt`
+
+### Changed
+- `ErrorCode.kt` — 3개 enum 값 추가 (COUPON_ALREADY_ISSUED, EVENT_SOLD_OUT, REDIS_UNAVAILABLE)
+- `ErrorCodeMapper.kt` — 410 GONE, 503 SERVICE_UNAVAILABLE 매핑 추가
+- `GlobalExceptionHandler.kt` — RedisConnectionFailureException/RedisSystemException → 503 처리 (FIX-5)
+
+### Fixed
+- **FIX-3**: Lua script ARGV[2] TTL 설정 검증 — issued Set에 동적 TTL 적용
+- **FIX-5**: GlobalExceptionHandler Redis 예외 핸들러 추가
+- **FIX-6**: CouponIssueTxService 분리로 Redis 호출 중 DB 커넥션 미점유 (HikariCP 고갈 방지)
+- **FIX-7**: Exception-aware compensation — DataIntegrityViolationException(UK) vs DataAccessException(기타) 분기
+- **FIX-4**: Redis key hash tags `{$eventId}` for Cluster compatibility
+- **ErrorCode refactoring**: HttpStatus 제거 → ErrorCodeMapper 확장 함수로 분리
+
+### Verified
+- Design Match Rate: 97% (78% → 97%, 2 iterations)
+- Lua 스크립트 원자성 — SISMEMBER + GET/DECR + SADD + EXPIRE 하나의 블록으로 실행
+- Redis 자료구조 타입 일관성 — stock(String), issued(Set) 명확히 구분
+- HTTP 상태코드 구분 — 409 Conflict vs 410 Gone
+- DB 커넥션 효율성 — Redis 호출 중 connection 미점유
+
+### Documentation
+- Completion Report: `docs/04-report/features/redis-stock.report.md` (v1.1)
+- Known Issues section with verification requirements
+- PR #4 fixes 반영 및 미해결 이슈 추적
+
+### Learning
+- Redis 자료구조 타입 충돌 WRONGTYPE 버그 사전 방지 방법
+- Check-then-Act 패턴으로 매진 경로 성능 극대화 (매진=99%+ 트래픽)
+- DB 트랜잭션 범위 축소로 고동시성 지원 가능
+- PR 리뷰 기반 반복적 개선의 중요성 (2 iterations)
+
+---
+
+## [2026-04-15] - Redis Stock Management Feature Complete (Initial)
+
+### Added
+- **8개 신규 파일** — Redis 재고 관리 기본 구조
+- Lua 스크립트 (3 RTT → 1 RTT 아키텍처)
+- Redis Lazy Init 패턴 (SET NX EX)
+- DB 보상 전략 (SREM + INCR)
+
+### Fixed
+- **GAP-01**: issued 키 WRONGTYPE 버그
+- **GAP-02**: @Transactional 누락
+- **GAP-03**: EVENT_SOLD_OUT HTTP 409→410
+- **GAP-04**: COUPON_ALREADY_ISSUED prefix
+- **GAP-05**: REDIS_UNAVAILABLE 미등록
+
+### Verified
+- Initial Design Match Rate: 78% → 97% (Iteration 1)
+- Success Criteria: 7/7 pass
+
+---
+
 ## [2026-04-14] - Event CRUD Test Suite Complete
 
 ### Added
