@@ -1,0 +1,1 @@
+- [Event CRUD Test Feature Completion](project_event_crud_test.md) — 81-test suite with Kotest 6.1.0, MockK 1.14.9, springmockk 5.0.1; 95% design match rate
