@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.data.redis.RedisConnectionFailureException
+import org.springframework.data.redis.RedisSystemException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -120,5 +122,13 @@ class GlobalExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(ErrorResponse.of(ErrorCode.INVALID_INPUT, errors))
+    }
+
+    @ExceptionHandler(RedisConnectionFailureException::class, RedisSystemException::class)
+    fun handleRedisUnavailable(e: Exception): ResponseEntity<ErrorResponse> {
+        log.error(e) { "Redis unavailable" }
+        return ResponseEntity
+            .status(ErrorCode.REDIS_UNAVAILABLE.httpStatus())
+            .body(ErrorResponse.of(ErrorCode.REDIS_UNAVAILABLE))
     }
 }

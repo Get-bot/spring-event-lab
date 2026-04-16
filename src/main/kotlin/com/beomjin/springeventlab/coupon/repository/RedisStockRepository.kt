@@ -11,9 +11,9 @@ class RedisStockRepository(
     private val redisTemplate: StringRedisTemplate,
     private val issueCouponScript: RedisScript<Long>,
 ) {
-    private fun stockKey(eventId: UUID): String = "coupon:stock:$eventId"
+    private fun stockKey(eventId: UUID): String = "coupon:stock:{$eventId}"
 
-    private fun issuedKey(eventId: UUID): String = "coupon:issued:$eventId"
+    private fun issuedKey(eventId: UUID): String = "coupon:issued:{$eventId}"
 
     /**
      * 재고를 Redis에 초기화한다 (이미 존재하면 무시).
@@ -24,28 +24,23 @@ class RedisStockRepository(
         totalQuantity: Int,
         ttlSeconds: Long,
     ) {
-        val stockKey = stockKey(eventId)
-        val issuedKey = issuedKey(eventId)
-
-        val wasSet =
-            redisTemplate
-                .opsForValue()
-                .setIfAbsent(stockKey, totalQuantity.toString(), Duration.ofSeconds(ttlSeconds))
-
-        if (wasSet == true) {
-            redisTemplate.expire(issuedKey, Duration.ofSeconds(ttlSeconds))
-        }
+        redisTemplate
+            .opsForValue()
+            .setIfAbsent(stockKey(eventId), totalQuantity.toString(), Duration.ofSeconds(ttlSeconds))
     }
 
     fun tryIssueCoupon(
         eventId: UUID,
         userId: UUID,
+        ttlSeconds: Long,
     ): IssueResult {
-        val code = redisTemplate.execute(
-            issueCouponScript,
-            listOf(stockKey(eventId), issuedKey(eventId)),
-            userId.toString(),
-        ) ?: throw IllegalStateException("Lua script returned null")
+        val code =
+            redisTemplate.execute(
+                issueCouponScript,
+                listOf(stockKey(eventId), issuedKey(eventId)),
+                userId.toString(),
+                ttlSeconds.toString(),
+            ) ?: throw IllegalStateException("Lua script returned null")
         return IssueResult.fromCode(code)
     }
 
@@ -57,6 +52,13 @@ class RedisStockRepository(
         userId: UUID,
     ) {
         redisTemplate.opsForSet().remove(issuedKey(eventId), userId.toString())
+        redisTemplate.opsForValue().increment(stockKey(eventId))
+    }
+
+    /**
+     * 신규 restoreStock: INCR만 (UK 위반용 — issued Set 유지)
+     */
+    fun restoreStock(eventId: UUID) {
         redisTemplate.opsForValue().increment(stockKey(eventId))
     }
 }
