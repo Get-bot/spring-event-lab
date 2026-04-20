@@ -25,6 +25,7 @@ enum class ErrorCode(
 
     // Coupon Errors
     COUPON_ALREADY_ISSUED("CI409-1", "이미 발급된 쿠폰입니다."),
+    COUPON_PUBLISH_FAILED("CI503", "쿠폰 발급 메시지 전송에 실패했습니다. 잠시 후 다시 시도해주세요."),
 
     // Redis Errors
     REDIS_UNAVAILABLE("R503", "Redis 서비스에 일시적으로 접근할 수 없습니다."),

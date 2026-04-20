@@ -46,6 +46,20 @@ class CouponIssueConcurrencyTest(
             ),
         )
 
+    // Kafka Consumer 소비 완료 대기 — Producer가 publish 후 응답하므로
+    // DB INSERT는 비동기(Consumer 스레드). DB count 검증 직전에 목표치까지 폴링.
+    fun awaitDbCount(expected: Long, timeoutSeconds: Long = 30) {
+        val deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
+        while (System.nanoTime() < deadlineNanos) {
+            if (couponIssueRepository.count() >= expected) return
+            Thread.sleep(100)
+        }
+        check(couponIssueRepository.count() >= expected) {
+            "Kafka Consumer did not reach expected DB count $expected in ${timeoutSeconds}s " +
+                "(actual=${couponIssueRepository.count()})"
+        }
+    }
+
     fun concurrentExecute(
         taskCount: Int,
         poolSize: Int = minOf(taskCount, 200),
@@ -109,9 +123,10 @@ class CouponIssueConcurrencyTest(
             }
         }
 
-        // Then — 3중 검증
+        // Then — 3중 검증 (DB는 Kafka Consumer가 비동기 소비 후 채움)
         successCount.get() shouldBe totalQuantity
         soldOutCount.get() shouldBe (taskCount - totalQuantity)
+        awaitDbCount(totalQuantity.toLong())
         couponIssueRepository.count() shouldBe totalQuantity.toLong()
     }
 
@@ -138,6 +153,7 @@ class CouponIssueConcurrencyTest(
         // Then
         successCount.get() shouldBe 1
         duplicateCount.get() shouldBe 99
+        awaitDbCount(1)
         couponIssueRepository.count() shouldBe 1
     }
 
@@ -147,6 +163,7 @@ class CouponIssueConcurrencyTest(
         repeat(5) {
             couponIssueService.issue(event.id, UUID.randomUUID())
         }
+        awaitDbCount(5) // Consumer가 5건을 모두 소비할 때까지 대기
         val preIssuedCount = couponIssueRepository.count()
         val soldOutCount = AtomicInteger(0)
 
@@ -162,7 +179,7 @@ class CouponIssueConcurrencyTest(
             }
         }
 
-        // Then
+        // Then — 매진 상태에서 Producer는 아예 publish하지 않으므로 DB는 preIssuedCount 그대로
         soldOutCount.get() shouldBe 1_000
         couponIssueRepository.count() shouldBe preIssuedCount
     }
@@ -181,7 +198,8 @@ class CouponIssueConcurrencyTest(
             }
         }
 
-        // Then — Redis와 DB 양쪽 정합성 검증
+        // Then — Redis와 DB 양쪽 정합성 검증 (Consumer 소비 완료 대기 후 비교)
+        awaitDbCount(totalQuantity.toLong())
         val dbCount = couponIssueRepository.count()
         val redisIssuedSize = redisTemplate.opsForSet()
             .size("coupon:issued:{${event.id}}") ?: 0

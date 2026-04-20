@@ -13,13 +13,14 @@ import java.util.UUID
 @Entity
 @Table(name = "coupon_issue")
 class CouponIssue(
+    id: UUID = UuidCreator.getTimeOrderedEpoch(),
     eventId: UUID,
     userId: UUID,
 ) : BaseCreatedTimeEntity() {
     @Id
     @JdbcTypeCode(SqlTypes.UUID)
     @Column(updatable = false, nullable = false, comment = "쿠폰_발급 PK")
-    var id: UUID = UuidCreator.getTimeOrderedEpoch()
+    var id: UUID = id
         protected set
 
     @Column(nullable = false, comment = "이벤트 ID")

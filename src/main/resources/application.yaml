@@ -38,11 +38,17 @@ spring:
       group-id: spring-event-lab
       auto-offset-reset: earliest
       enable-auto-commit: false
+      properties:
+        spring.json.trusted.packages: com.beomjin.springeventlab.*
+        spring.json.value.default.type: com.beomjin.springeventlab.coupon.dto.message.CouponIssueMessage
+    listener:
+      ack-mode: record
     producer:
       acks: all
       retries: 3
       properties:
         enable.idempotence: true
+        spring.json.add.type.headers: false
 
 server:
   port: ${SERVER_PORT:8080}

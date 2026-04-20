@@ -3,6 +3,7 @@ package com.beomjin.springeventlab.global.exception
 import com.beomjin.springeventlab.global.exception.ErrorCode.BAD_GATEWAY
 import com.beomjin.springeventlab.global.exception.ErrorCode.CONFLICT
 import com.beomjin.springeventlab.global.exception.ErrorCode.COUPON_ALREADY_ISSUED
+import com.beomjin.springeventlab.global.exception.ErrorCode.COUPON_PUBLISH_FAILED
 import com.beomjin.springeventlab.global.exception.ErrorCode.EVENT_INVALID_STATUS_TRANSITION
 import com.beomjin.springeventlab.global.exception.ErrorCode.EVENT_NOT_FOUND
 import com.beomjin.springeventlab.global.exception.ErrorCode.EVENT_NOT_OPEN
@@ -44,6 +45,6 @@ object ErrorCodeMapper {
 
             BAD_GATEWAY -> HttpStatus.BAD_GATEWAY
 
-            SERVICE_UNAVAILABLE, REDIS_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE
+            SERVICE_UNAVAILABLE, REDIS_UNAVAILABLE, COUPON_PUBLISH_FAILED -> HttpStatus.SERVICE_UNAVAILABLE
         }
 }
