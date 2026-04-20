@@ -6,7 +6,7 @@
 > **Version**: 0.0.1-SNAPSHOT
 > **Author**: beomjin
 > **Date**: 2026-04-16
-> **Status**: Draft (v0.3)
+> **Status**: Draft (v0.4)
 > **Planning Doc**: [03-concurrency-test.plan.md](../../01-plan/features/03-concurrency-test.plan.md)
 > **Depends On**: 02-redis-stock (CouponIssueService, RedisStockRepository, issue_coupon.lua)
 
@@ -17,8 +17,8 @@
 | Perspective | Content |
 |-------------|---------|
 | **Problem** | Lua 스크립트의 원자성은 코드 리뷰로 확인했지만, 실제 동시 요청 환경에서 초과/중복 발급이 0건인지 코드만으로는 증명 불가능하다 |
-| **Solution** | `startLatch(1)` 동시 출발 + `doneLatch(N)` 완료 대기 이중 래치 패턴으로 10,000건 요청을 동시에 발사하고, DB/Redis 양쪽에서 발급 건수 정합성을 검증하는 통합 테스트를 작성한다 |
-| **Function/UX Effect** | `./gradlew test --tests *ConcurrencyTest` 한 줄로 "1,000개 쿠폰에 10,000건 → 정확히 1,000건" 증명 |
+| **Solution** | `startLatch(1)` 동시 출발 + `doneLatch(N)` 완료 대기 이중 래치 패턴으로 3,000건 요청을 동시에 발사하고, DB/Redis 양쪽에서 발급 건수 정합성을 검증하는 통합 테스트를 작성한다 |
+| **Function/UX Effect** | `./gradlew test --tests *ConcurrencyTest` 한 줄로 "1,000개 쿠폰에 3,000건 → 정확히 1,000건" 증명 |
 | **Core Value** | Redis Lua 원자적 재고 관리의 정합성을 동시성 테스트로 객관 검증하고, 이중 래치 패턴 + Testcontainers 기반 재현 가능한 동시성 테스트 작성법을 학습한다 |
 
 ---
@@ -136,8 +136,8 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.test.context.ActiveProfiles
 import org.testcontainers.containers.GenericContainer
-import org.testcontainers.containers.KafkaContainer
-import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.kafka.KafkaContainer
+import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
 import java.time.Instant
 import java.util.UUID
@@ -228,11 +228,13 @@ fun concurrentExecute(
     }
 
     startLatch.countDown()                             // 동시 출발
-    val completed = doneLatch.await(60, TimeUnit.SECONDS)
-    executor.shutdown()
-    executor.awaitTermination(5, TimeUnit.SECONDS)
-
-    check(completed) { "concurrentExecute timed out: $taskCount tasks / $poolSize threads" }
+    try {
+        val completed = doneLatch.await(120, TimeUnit.SECONDS)
+        check(completed) { "concurrentExecute timed out: $taskCount tasks / $poolSize threads" }
+    } finally {
+        executor.shutdownNow()
+        executor.awaitTermination(10, TimeUnit.SECONDS)
+    }
 }
 ```
 
@@ -243,10 +245,10 @@ fun concurrentExecute(
 | `taskCount` | 전체 작업 수 (submit 횟수) | 필수 |
 | `poolSize` | 동시 실행 스레드 수 (풀 크기) | min(taskCount, 200) |
 
-- TC-01에서 `taskCount=10,000`이면 `poolSize=200`이 기본 적용. OS 스레드 제한(ulimit) 안에서 동작하면서도 충분한 동시성 부하를 생성한다
+- TC-01에서 `taskCount=3,000`이면 `poolSize=200`이 기본 적용. OS 스레드 제한(ulimit) 안에서 동작하면서도 충분한 동시성 부하를 생성한다
 - `startLatch`: 작업 큐에 모든 태스크가 제출된 후, `countDown()`으로 동시 출발. poolSize 제한으로 200개씩 batch 실행되지만, 각 batch 내에서는 진짜 동시 실행 보장
-- `doneLatch.await(60, SECONDS)`: 무한 대기 방지. 타임아웃 시 `check` assertion 실패로 명확히 테스트 실패
-- `executor.awaitTermination(5, SECONDS)`: shutdown 후 잔여 태스크 정리 대기
+- `doneLatch.await(120, SECONDS)`: 무한 대기 방지. 타임아웃 시 `check` assertion 실패로 명확히 테스트 실패
+- `try-finally` + `executor.shutdownNow()`: 타임아웃이든 정상 완료든 스레드 풀을 즉시 정리. `awaitTermination(10, SECONDS)`로 잔여 태스크 종료 대기
 
 > **이중 래치(Double Latch) 패턴**:
 > - `startLatch(1)`: "준비" 신호. 모든 스레드가 `await()`에서 대기 → `countDown()`으로 동시 출발
@@ -274,10 +276,10 @@ beforeTest {
 ### 3.5 TC-01: 초과 발급 검증
 
 ```kotlin
-test("TC-01: 1,000개 쿠폰에 10,000건 동시 요청 시 정확히 1,000건만 발급된다") {
-    // Given
+test("TC-01: 1,000개 쿠폰에 3,000건 동시 요청 시 정확히 1,000건만 발급된다") {
+    // Given — Testcontainers + HikariCP(10) 환경에서 안정적 완료를 위해 3x 과부하
     val totalQuantity = 1_000
-    val taskCount = 10_000
+    val taskCount = 3_000
     val event = createOpenEvent(totalQuantity)
     val successCount = AtomicInteger(0)
     val soldOutCount = AtomicInteger(0)
@@ -311,7 +313,7 @@ test("TC-01: 1,000개 쿠폰에 10,000건 동시 요청 시 정확히 1,000건�
 ### 3.6 TC-02: 중복 발급 검증
 
 ```kotlin
-test("TC-02: 동일 userId로 100 동시 요청 시 1건만 발급된다") {
+test("TC-02: 동일 userId로 100건 동시 요청 시 1건만 발급된다") {
     // Given
     val event = createOpenEvent(totalQuantity = 100)
     val sameUserId = UUID.randomUUID()
@@ -417,7 +419,7 @@ test("TC-04: 발급 후 Redis issued Set 크기 == DB 발급 건수") {
 
 | TC | taskCount | poolSize | 근거 |
 |----|:---------:|:--------:|------|
-| TC-01 | 10,000 | 200 (기본값) | 최대 동시성. 200 스레드가 큐에서 작업을 꺼내 10,000건 처리 |
+| TC-01 | 3,000 | 200 (기본값) | 최대 동시성. 200 스레드가 큐에서 작업을 꺼내 3,000건 처리 |
 | TC-02 | 100 | 100 (1:1) | 소규모이므로 전수 동시 실행. 중복 발급 검증은 모든 요청이 "진짜 동시"여야 의미 있음 |
 | TC-03 | 1,000 | 200 (기본값) | 매진 경로(읽기 only)라 빠르게 완료 |
 | TC-04 | 1,000 | 200 (기본값) | Redis-DB 정합성 검증 |
@@ -425,7 +427,7 @@ test("TC-04: 발급 후 Redis issued Set 크기 == DB 발급 건수") {
 **왜 poolSize 기본값 = 200인가?**
 
 - Linux 기본 `ulimit -u`는 보통 4096~65536. 200개 스레드는 안전 범위
-- 200개 스레드가 10,000건 처리: 스레드당 평균 50번 실행. 이는 실전의 "스레드 풀이 요청을 큐잉하여 처리하는" 패턴과 유사
+- 200개 스레드가 3,000건 처리: 스레드당 평균 15번 실행. 이는 실전의 "스레드 풀이 요청을 큐잉하여 처리하는" 패턴과 유사
 - CI 환경(GitHub Actions, Jenkins)에서도 200 스레드 수준은 안정적으로 동작
 
 ---
@@ -434,19 +436,19 @@ test("TC-04: 발급 후 Redis issued Set 크기 == DB 발급 건수") {
 
 ### 5.1 doneLatch 타임아웃
 
-`concurrentExecute` 헬퍼에서 `doneLatch.await(60, TimeUnit.SECONDS)` 적용.
+`concurrentExecute` 헬퍼에서 `doneLatch.await(120, TimeUnit.SECONDS)` 적용.
 
 | TC | 예상 소요 | 타임아웃 | 여유 |
 |----|:---------:|:--------:|:----:|
-| TC-01 | 5~15s | 60s | 4~12x |
-| TC-02 | 1~3s | 60s | 20x+ |
-| TC-03 | 1~2s | 60s | 30x+ |
-| TC-04 | 3~8s | 60s | 7~20x |
+| TC-01 | 5~15s | 120s | 8~24x |
+| TC-02 | 1~3s | 120s | 40x+ |
+| TC-03 | 1~2s | 120s | 60x+ |
+| TC-04 | 3~8s | 120s | 15~40x |
 
 ### 5.2 데드락 방지
 
 - `finally { doneLatch.countDown() }`: 예외 발생 시에도 래치 감소 보장
-- `executor.shutdown()` + `awaitTermination(5s)`: 스레드 풀 정리
+- `try-finally` + `executor.shutdownNow()` + `awaitTermination(10s)`: 타임아웃/정상 완료 모두에서 스레드 풀 즉시 정리
 - 예상치 못한 예외 전파: `when` 분기의 `else → throw e`로 테스트 실패 유도
 - `check(completed)`: 타임아웃 발생 시 명확한 에러 메시지
 
@@ -486,7 +488,7 @@ src/test/kotlin/com/beomjin/springeventlab/
 
 ## 8. Success Criteria
 
-- [ ] TC-01: 1,000개 쿠폰, 10,000건 동시 요청 → 정확히 1,000건 발급 (초과 0건)
+- [ ] TC-01: 1,000개 쿠폰, 3,000건 동시 요청 → 정확히 1,000건 발급 (초과 0건)
 - [ ] TC-02: 동일 userId 100건 동시 → 1건만 발급 (중복 0건)
 - [ ] TC-03: 매진 이벤트 1,000건 → 추가 발급 0건
 - [ ] TC-04: Redis issued Set == DB 발급 건수
@@ -503,3 +505,4 @@ src/test/kotlin/com/beomjin/springeventlab/
 | 0.1 | 2026-04-15 | Initial design — 4 TC, companion container 패턴, concurrentExecute 헬퍼, Redis flushAll 전략 | beomjin |
 | 0.2 | 2026-04-16 | redis-stock 구현 반영: Redis 키 hash tag `{$eventId}` 패턴 적용 | beomjin |
 | 0.3 | 2026-04-16 | Plan 검증 반영: concurrentExecute poolSize 분리, TC-03 순차 선발급 방식, EventFixture 활용, CouponIssueService 흐름도 추가, Key Insight (Event.issue 미호출) 추가 | beomjin |
+| 0.4 | 2026-04-17 | PR #5 리뷰 반영: TC-01 taskCount 10,000→3,000 동기화, timeout 120s/shutdownNow/awaitTermination(10s) 반영, import 경로 수정 (testcontainers.kafka/postgresql) | beomjin |

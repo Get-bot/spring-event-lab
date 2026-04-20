@@ -1,1 +1,2 @@
+- [Kafka Consumer Feature Completion](project_kafka_consumer.md) — Peak Load Shifting, @RetryableTopic, UUID v7 pre-gen, 97% Match Rate, Spring Kafka 4.x API versioning lessons
 - [Event CRUD Test Feature Completion](project_event_crud_test.md) — 81-test suite with Kotest 6.1.0, MockK 1.14.9, springmockk 5.0.1; 95% design match rate
