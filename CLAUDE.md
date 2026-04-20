@@ -15,6 +15,28 @@
 - **문서화**: SpringDoc OpenAPI (Swagger UI)
 - **테스트**: Kotest 6.1.0 + MockK 1.14.9 + springmockk 5.0.1 + Testcontainers (→ [테스트 작성 가이드](docs/engine/TEST_WRITE_GUIDE.md))
 
+## Knowledge Base (`docs/engine/`) — 구현 전 필독
+
+세부 컨벤션은 모두 `docs/engine/` 가이드로 분리되어 있다. CLAUDE.md는 **맵 역할**만 한다.
+
+> **사용 규칙**: 작업 지시·질문·설계 문서에 아래 **트리거 키워드**가 등장하면 **구현 시작 전에** 해당 가이드를 먼저 읽는다. 키워드는 대소문자 무관, 한/영 동일 취급.
+
+| 문서 | 다루는 영역 | 트리거 키워드 |
+|------|------------|-------------|
+| [`JPA_WRITE_GUIDE.md`](docs/engine/JPA_WRITE_GUIDE.md) | Entity 설계 (`protected set` / `init` 불변식 / VO) · Repository (`findByIdOrNull`) · Aggregate 경계 (`@ManyToOne` 지양, ID 참조) · UUID v7 · JPA Auditing · Flyway · QueryDSL | Entity / Repository / `findByIdOrNull` / `@ManyToOne` / Aggregate / UUID v7 / `@JdbcTypeCode` / Flyway / 마이그레이션 / JPA Auditing / QueryDSL / `protected set` |
+| [`DTO_WRITE_GUIDE.md`](docs/engine/DTO_WRITE_GUIDE.md) | Request/Response DTO · `toEntity()` / `from()` 패턴 · Bean Validation (`@field:` target) · SpringDoc `@Schema` · 정규식 단일 출처 · PII 마스킹 | DTO / Request / Response / `@field:` / `@Schema` / Bean Validation / `@Valid` / `@Pattern` / `toEntity` / `from(` / PII 마스킹 |
+| [`TEST_WRITE_GUIDE.md`](docs/engine/TEST_WRITE_GUIDE.md) | 4-Layer Test Pyramid (L1 Domain ~ L4 Integration) · Kotest + MockK + Testcontainers · Fixture · `IntegrationTestBase` · `ProjectConfig` | 테스트 / test / Fixture / Kotest / MockK / `@MockkBean` / `@WebMvcTest` / `@DataJpaTest` / `@SpringBootTest` / Testcontainers / `withData` / `ProjectConfig` / `IntegrationTestBase` |
+| [`ERROR_WRITE_GUIDE.md`](docs/engine/ERROR_WRITE_GUIDE.md) | ErrorCode 명명·의사결정 · `BusinessException` 사용 · `GlobalExceptionHandler` 확장 · `ErrorResponse` 구조 · 로깅 레벨 정책 (4xx=warn / 5xx=error) · cause chain unwrapping | ErrorCode / `BusinessException` / `GlobalExceptionHandler` / `@RestControllerAdvice` / `@ExceptionHandler` / ErrorResponse / 에러 코드 / 예외 / 에러 핸들러 / 로깅 레벨 / cause chain / unwrap |
+
+## 컨벤션 (engine/에 없는 고유 항목)
+
+### ErrorCode
+- 상세: [`ERROR_WRITE_GUIDE.md §1`](docs/engine/ERROR_WRITE_GUIDE.md#1-errorcode-명명의사결정) 참조
+
+### Pagination
+- `@PageableDefault` + `@ParameterObject` 사용 (커스텀 Pageable 지양)
+- 1-based 페이지: `spring.data.web.pageable.one-indexed-parameters=true`
+
 ## 컨벤션
 
 ### Entity

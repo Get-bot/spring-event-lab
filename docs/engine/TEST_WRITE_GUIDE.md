@@ -1,4 +1,4 @@
-# Test Writing Guide — spring-event-lab
+# Test Writing Guide — buws-api-server
 
 > **Tech Stack**: Kotest 6.1.0 + MockK 1.14.9 + springmockk 5.0.1  
 > **Origin**: event-crud-test PDCA 아카이브 (2026-04-10 ~ 2026-04-14, Match Rate 95%)  
