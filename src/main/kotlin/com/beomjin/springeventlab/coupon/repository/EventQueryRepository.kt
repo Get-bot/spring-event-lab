@@ -51,4 +51,6 @@ class EventQueryRepository(
 
         return PageableExecutionUtils.getPage(content, pageable) { countQuery.fetchOne() ?: 0L }
     }
+
+
 }

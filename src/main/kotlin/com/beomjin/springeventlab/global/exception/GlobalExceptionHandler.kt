@@ -1,6 +1,5 @@
 package com.beomjin.springeventlab.global.exception
 
-import com.beomjin.springeventlab.global.exception.ErrorCodeMapper.httpStatus
 import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -27,7 +26,7 @@ class GlobalExceptionHandler {
     fun handleBusiness(e: BusinessException): ResponseEntity<ErrorResponse> {
         log.warn { "Business exception: code=${e.errorCode.code}, message=${e.message}" }
         return ResponseEntity
-            .status(e.errorCode.httpStatus())
+            .status(e.errorCode.httpStatus)
             .body(ErrorResponse.of(e.errorCode))
     }
 
@@ -49,7 +48,7 @@ class GlobalExceptionHandler {
         if (cause?.cause is BusinessException) {
             val biz = cause.cause as BusinessException
             log.warn { "JSON parse error (business): ${biz.message}" }
-            return ResponseEntity.status(biz.errorCode.httpStatus()).body(ErrorResponse.of(biz.errorCode))
+            return ResponseEntity.status(biz.errorCode.httpStatus).body(ErrorResponse.of(biz.errorCode))
         }
 
         val errorMessage =
@@ -128,7 +127,7 @@ class GlobalExceptionHandler {
     fun handleRedisUnavailable(e: Exception): ResponseEntity<ErrorResponse> {
         log.error(e) { "Redis unavailable" }
         return ResponseEntity
-            .status(ErrorCode.REDIS_UNAVAILABLE.httpStatus())
+            .status(ErrorCode.REDIS_UNAVAILABLE.httpStatus)
             .body(ErrorResponse.of(ErrorCode.REDIS_UNAVAILABLE))
     }
 }

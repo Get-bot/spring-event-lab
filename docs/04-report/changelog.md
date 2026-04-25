@@ -4,6 +4,81 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2026-04-20] - Kafka Consumer Feature Complete (Flash Sale Roadmap 4/5)
+
+### Added
+- **4개 신규 컴포넌트** — Peak Load Shifting 패턴 구현 (450 lines)
+  - `CouponIssueMessage.kt` — Kafka 메시지 스키마 (id, eventId, userId, issuedAt)
+  - `CouponIssueProducer.kt` — 발행 + 실패 시 Redis 보상 (SREM+INCR)
+  - `CouponIssueConsumer.kt` — `@RetryableTopic` + `@DltHandler` + exclude UK violation
+  - `KafkaConfig.kt` — ProducerFactory/ConsumerFactory/Template Bean + couponIssueTopic() 통합
+
+### Methodology
+- **UUID v7 사전 생성**: Service가 `UuidCreator.getTimeOrderedEpoch()` → Producer 메시지에 주입 → 즉시 응답 id 확정
+- **동기 발행 + 비동기 처리**: `send().get(3s)` 대기 후 Redis 보상 또는 201 응답 → Consumer가 DB 소화 속도로 처리
+- **선언적 DLT**: `@RetryableTopic(attempts=4, backoff exponential, dltTopicSuffix=".DLT")` → 수동 DefaultErrorHandler 제거
+- **이중 멱등성**: exclude + try/catch 로그 후 삼킴 + DB UK 제약
+- **Partition key = eventId**: 같은 이벤트 메시지는 같은 파티션으로 순서 보장
+
+### Verified
+- **Match Rate**: 97% (기능 gap 0, documentation debt 3% ← Spring Kafka 4.x API versioning)
+- **Success Criteria**: 9/9 (UUID 사전 생성, 즉시 응답, Redis 보상, @RetryableTopic, Consumer 멱등성, DLT, 동시성 테스트 회귀 등)
+- **Error Handling**: 11/11 경로 커버 (Event 미존재~DLT까지)
+- **Concurrency Test**: 4개 TC (TC-01 초과 발급, TC-02 중복, TC-03 매진, TC-04 Redis-DB 정합성) 모두 통과 with `awaitDbCount()` Consumer 대기
+- **Design Match**: 9/9 구현 순서, 9/9 설계 결정 일치
+- **Execution Time**: ~10초 (Kafka + Consumer 처리)
+
+### Documentation
+- Completion Report: `docs/04-report/features/04-kafka-consumer.report.md` (v1.0)
+- Gap Analysis: `docs/03-analysis/04-kafka-consumer.analysis.md` (v0.1, Match Rate 97%)
+- Design Evolution: v0.1 (2026-04-20) — Spring Kafka 4.x API 코드 스니펫 추가 권고
+
+### Learning
+- **L1**: Design 작성 시 "최신 코드 실행 환경 버전"을 먼저 확인할 것 — v0.1은 Spring Kafka 2.x/3.x API로 작성, 실제는 4.0.4
+  - G1-G2: `JsonSerializer` → `JacksonJsonSerializer` (Spring Kafka 4 표준)
+  - G3: `backoff =` → `backOff =` + `org.springframework.kafka.annotation.BackOff` (spring-retry 분리)
+  - G4: `buildProducerProperties(null)` → `buildProducerProperties()` (Spring Boot 4 API)
+  - G8: retry topic naming (`topicSuffixingStrategy` 명시)
+- **L2**: Documentation Debt ≠ Functional Gap — 97% 달성의 의미는 "기능 100% + API 버전 차이 3%"
+- **L3**: Consumer 멱등성은 3층 방어 필수 (Kafka exclude + Consumer try/catch + DB UK 제약)
+- **L4**: `awaitDbCount()` 폴링으로 프로덕션 코드 오염 방지 (테스트만 사용)
+- **L5**: `@RetryableTopic` 선언적 DLT가 Spring Kafka 4.0.4 표준 — 수동 DefaultErrorHandler 제거 완료
+- **Roadmap Progress**: Flash Sale 4/5 완성, 마지막 단계는 `05-waiting-queue` (Kafka 앞단 대기열)
+
+---
+
+## [2026-04-17] - Concurrency Test Suite Complete (Flash Sale Roadmap 3/5)
+
+### Added
+- **1개 신규 통합 테스트 클래스** — 고동시성 환경 검증 (210 lines)
+  - `CouponIssueConcurrencyTest.kt` — Kotest FunSpec 기반, companion object containers
+  - 4개 Test Case: TC-01(초과 발급), TC-02(중복 발급), TC-03(매진), TC-04(Redis-DB 정합성)
+
+### Methodology
+- **이중 래치(Double Latch) 패턴** — startLatch(1) 동시 출발 + doneLatch(taskCount) 완료 대기
+- **poolSize 분리 전략** — 3,000 tasks를 200 threads로 처리 (batch 방식, OS ulimit 안전)
+- **Helper 함수** — `createOpenEvent()`, `concurrentExecute()` 재사용성 극대화
+- **3중 검증** — successCount + soldOutCount + DB count 일치 확인
+
+### Verified
+- **TC-01**: 1,000개 쿠폰, 3,000건 동시 요청 → 정확히 1,000건 발급 (초과 0건)
+- **TC-02**: 동일 userId 100건 동시 → 1건만 발급 (중복 0건)
+- **TC-03**: 매진 이벤트에 1,000건 요청 → 추가 발급 0건
+- **TC-04**: Redis issued Set 크기 == DB 발급 건수 (정합성 완벽)
+- Design Match Rate: 100% (v0.4 완전 일치, 4회 반복 갱신)
+- Execution Time: ~17초 (4 TC 합계, 타임아웃 120초 내)
+
+### Documentation
+- Completion Report: `docs/04-report/features/concurrency-test.report.md` (v1.0)
+- Design Evolution: v0.1 → v0.4 (4회 갱신: Plan 검증 → redis-stock 반영 → 구현 반영 → PR #5 리뷰 반영)
+
+### Learning
+- "동시성 버그는 코드 리뷰로 안 잡힌다, 테스트로만 잡힌다" 원칙 입증
+- Testcontainers 기반 재현 가능한 테스트 환경 (로컬/CI 동일)
+- redis-stock feature의 신뢰도 완성 및 flash sale roadmap 3/5 달성
+
+---
+
 ## [2026-04-16] - Redis Stock Management Feature Complete (PR #4 Review Fixes)
 
 ### Added
