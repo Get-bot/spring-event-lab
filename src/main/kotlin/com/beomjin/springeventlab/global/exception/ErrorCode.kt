@@ -32,4 +32,7 @@ enum class ErrorCode(
 
     // Redis Errors
     REDIS_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "R503", "Redis 서비스에 일시적으로 접근할 수 없습니다."),
+
+    // Queue Errors
+    USER_ALREADY_IN_QUEUE(HttpStatus.CONFLICT, "Q409-1", "이미 대기열에 등록된 유저입니다."),
 }
