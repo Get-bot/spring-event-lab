@@ -4,6 +4,105 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2026-04-25] - Waiting Queue Feature Complete (Flash Sale Roadmap 5/5)
+
+### Added
+- **Waiting Queue 시스템 구현 완료** — Redis Sorted Set 기반 대기열, Scheduler 배치 처리 (600 lines)
+  - Lua 원자성: enter_queue.lua — SISMEMBER + ZSCORE + ZADD + EXPIRE 1 RTT 처리
+  - WaitingQueueRepository: tryEnter / rank / size / popMin / recordResult / findResult
+  - WaitingQueueService: enter(이벤트 검증 + Lua + rank 반환) / status(결과 폴링 지원)
+  - CouponIssueScheduler: @Scheduled(fixedDelay) drain + SOLD_OUT short-circuit
+  - WaitingQueueController: POST /enter, GET /queue/status (6가지 status enum)
+  - SchedulingConfig: @EnableScheduling + TaskScheduler (poolSize=2, graceful shutdown)
+  - WaitingQueueProperties: poll-interval-ms / batch-size / result-ttl-seconds 운영자 제어
+
+### Methodology
+- **Backpressure 패턴**: 거부(429) 아닌 지연(200 + rank) — 시스템 처리 능력과 트래픽 분리
+- **Lua 원자성**: SISMEMBER/ZSCORE/ZADD/EXPIRE를 1 RTT 안에 race-free 처리
+- **결과 비동기 통지**: ZPOPMIN은 destructive → result:{eventId}:{userId} 키에 TTL 기록
+- **SOLD_OUT short-circuit**: batch 내 첫 매진 후 잔여 유저는 Lua 미호출, SET만으로 일괄 통보
+- **fixedDelay**: 처리 시간 증가 시 자동 back-pressure (호출 누적 방지)
+- **기존 경로 재사용**: redis-stock(Lua) + kafka-consumer(Producer 보상) 100% 재사용
+
+### Verified
+- **Match Rate**: 99.0% (설계 50/50 구현 일치, P0/P1 없음, P2 3건 모두 design 문서 표기 오류)
+- **Convention Compliance**: 6/6 = 100% (BusinessException, @Schema, findByIdOrNull, DDD, hash tags, errorcode)
+- **Implementation Order**: 11/11 완료 (Lua→Redis→Repository→Service→Controller→Scheduler→Config)
+- **API Contract**: 2 endpoints (POST /enter, GET /queue/status) 구현 + 에러 매트릭 12개 경로
+- **Design Items**: 50/50 = 100% (아키텍처, 데이터 흐름, 시퀀스, 에러 매트릭, 파일 구조)
+
+### Documentation
+- **Completion Report**: `docs/04-report/features/05-waiting-queue.report.md` (v1.0)
+- **Gap Analysis**: `docs/03-analysis/05-waiting-queue.analysis.md` (Match Rate 99.0%)
+- **Design Document**: `docs/02-design/features/05-waiting-queue.design.md` (v0.1, 2026-04-25)
+- **Planning Document**: `docs/01-plan/features/05-waiting-queue.plan.md` (v0.1, 2026-04-09)
+
+### Learning
+- **L1**: Design 문서 자체가 자기 모순(§2.5 vs §3.8)을 가질 수 있다 — design-validator 필요
+- **L2**: Queue는 rate limiter가 아니라 버퍼 — 거부 대신 지연 허용으로 공정성 + 진행 상황 가시화
+- **L3**: ZPOPMIN의 destructive 특성 때문에 결과 통지 키 별도 도입 — crash 복구는 Redis Streams가 다음 phase
+- **L4**: 학습 프로젝트의 정직한 OOS 명시 (§11 5개 항목) — "완벽함" 대신 "학습 적층"
+- **L5**: Flash Sale Roadmap 5/5 완성 — CRUD(DDD) → Stock(Lua) → Concurrency(test) → Kafka(비동기) → Queue(backpressure)의 적층
+
+### Roadmap Progress
+- **Flash Sale 완료**: 5/5 (Event CRUD + Redis Stock + Concurrency Test + Kafka Consumer + **Waiting Queue**)
+- **누적 Line**: ~4,500 (Entities 500 + Services 1200 + Controllers 400 + Tests 1000 + Config 400 + Lua 100)
+- **누적 PDCA**: 6 cycles (모두 ≥90% match rate 달성)
+
+### Follow-up Work
+- **테스트 작성**: design §9 Testing Strategy (L2~L4, 별도 PR)
+- **Design 문서 수정**: P2 3건 (§2.5 메서드명, §3.8 인터페이스, §3.4 캐싱 note) — fast-track
+- **다음 학습 Phase**: Redis Streams(crash 복구) / ShedLock(분산 락) / Caffeine(캐싱) / SSE(결과 푸시)
+
+---
+
+## [2026-04-25] - Event CRUD Feature Complete (Flash Sale Roadmap 1/5)
+
+### Added
+- **Event CRUD API 구현 완료** — DDD Rich Domain Model + QueryDSL 동적 검색 (2,500 lines)
+  - Event entity: Rich Domain Model (issue/open/close 메서드, 상태 불변식)
+  - DateRange Value Object: @Embeddable, startedAt < endedAt 불변식 자동 검증
+  - EventStatus enum: 상태 전이 규칙 (READY→OPEN→CLOSED)
+  - CouponIssue entity: ID 참조만 (DDD Aggregate 경계, @ManyToOne 미사용)
+  - EventQueryRepository: QueryDSL 동적 필터 + PageableExecutionUtils lazy count
+  - EventController: 다중 필터 검색 + 1-based Pagination + 다중 정렬
+
+### Methodology
+- **DDD 원칙**: Rich Domain Model로 도메인 로직 Entity 내부 캡슐화 (Anemic 회피)
+- **Value Object 추출**: DateRange로 기간 개념 한 곳에서 관리, Coupon/Promotion 재사용 가능
+- **Aggregate 경계**: Event ↔ CouponIssue ID 참조만 (성능 + 분리 가능성)
+- **QueryDSL null-safe**: listOfNotNull + 화이트리스트 정렬로 동적 검색 안전성
+- **ErrorCode 세분화**: {DOMAIN}_{CONDITION} 패턴 + E409-1/-2/-3 서브코드로 원인별 분리
+- **1-based Pagination**: Spring 네이티브 one-indexed-parameters (커스텀 프레임워크 미필요)
+
+### Verified
+- **Match Rate**: 95% (Design 일치 38/40, 의도적 개선 3, 문서 갱신 2)
+- **DDD Convention**: 14/14 = 100% (Aggregate·Value Object·Entity 불변식·ErrorCode·QueryDSL 등)
+- **Success Criteria**: 10/10 (Flyway·Entity template·DateRange·API·다중 필터·ErrorCode·Aggregate·CLAUDE.md·테스트·Gap)
+- **Test Coverage**: 6 layer 완전 커버 (Entity/DTO/Repository/Service/Controller/Integration)
+- **Implementation Order**: 13/13 완료
+
+### Documentation
+- **Completion Report**: `docs/04-report/features/01-event-crud.report.md` (v1.0)
+- **Gap Analysis**: `docs/03-analysis/01-event-crud.analysis.md` (Retroactive Check, Match Rate 95%)
+- **Plan/Design**: v0.4 완료 (DDD 리팩토링 반영, 9개 설계 결정 정의)
+
+### Learning
+- **L1**: DDD Rich Domain Model이 코드 유지보수성을 극대화 — 규칙이 data 소유 엔티티에 모임
+- **L2**: Value Object는 두 번째 사용처에서 가치 증명 — DateRange는 Coupon, Promotion 등에 재사용 가능하게 설계
+- **L3**: Aggregate 경계 (ID 참조)가 선착순 성능 최적화의 핵심 — N+1 방지 + 향후 샤드 가능
+- **L4**: QueryDSL null-safe 필터가 동적 검색을 선언적으로 구현 — 복잡한 if 문 제거
+- **L5**: ErrorCode 서브코드가 클라이언트 원인별 UX 분기 가능하게 함 — E409-2(매진)vs E409-1(상태 불일치)
+- **L6**: Spring Boot 4 Flyway 호환성 — spring-boot-starter-flyway 필수 (auto-config 분리)
+- **Roadmap Progress**: Flash Sale 1/5 완성, baseline architecture 확립
+
+### Archive Status
+- **Ready for Archive**: YES (Match Rate 95%, DDD 14/14, functional gap 0)
+- **Pending Updates** (archive 후 선택): G1·G2·G3 문서 갱신 (5-10분, 경미한 수준)
+- **Archive Path**: `docs/archive/2026-04/01-event-crud/`
+
+---
+
 ## [2026-04-20] - Kafka Consumer Feature Complete (Flash Sale Roadmap 4/5)
 
 ### Added

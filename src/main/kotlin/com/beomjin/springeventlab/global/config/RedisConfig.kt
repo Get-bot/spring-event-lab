@@ -9,4 +9,7 @@ import org.springframework.data.redis.core.script.RedisScript
 class RedisConfig {
     @Bean
     fun issueCouponScript(): RedisScript<Long> = RedisScript.of(ClassPathResource("scripts/issue_coupon.lua"), Long::class.java)
+
+    @Bean
+    fun enterQueueScript(): RedisScript<Long> = RedisScript.of(ClassPathResource("scripts/enter_queue.lua"), Long::class.java)
 }

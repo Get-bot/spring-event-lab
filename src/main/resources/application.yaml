@@ -61,3 +61,8 @@ management:
   endpoint:
     health:
       show-details: always
+
+waiting-queue:
+  poll-interval-ms: 1000
+  batch-size: 100
+  result-ttl-seconds: 3600
