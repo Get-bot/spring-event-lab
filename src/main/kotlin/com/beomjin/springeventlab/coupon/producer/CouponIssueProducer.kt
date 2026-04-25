@@ -24,9 +24,15 @@ class CouponIssueProducer(
                 .get(PUBLISH_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         } catch (e: Exception) {
             log.error(e) {
-                "Kafka 발행 실패, Redis 보상 — eventId=${message.eventId}, userId=${message.userId}"
+                "Kafka 발행 실패, Redis 보상 시도 — eventId=${message.eventId}, userId=${message.userId}"
             }
-            redisStockRepository.compensate(message.eventId, message.userId)
+            try {
+                redisStockRepository.compensate(message.eventId, message.userId)
+            } catch (compensateException: Exception) {
+                log.error(compensateException) {
+                    "Redis 보상 실패 — eventId=${message.eventId}, userId=${message.userId}"
+                }
+            }
             throw BusinessException(ErrorCode.COUPON_PUBLISH_FAILED)
         }
     }
